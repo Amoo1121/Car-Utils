@@ -22,6 +22,7 @@ import {
   createStoreBackup,
   emptyStore,
   filterActive,
+  filterDeleted,
   fuelGrades,
   matchesFuelDateFilter,
   matchesFuelQuery,
@@ -31,6 +32,8 @@ import {
   paidUnitPrice,
   parseStoreBackup,
   recordCost,
+  restoreEntity,
+  softDeleteEntity,
   stationName,
   today,
   vehiclePresets,
@@ -144,8 +147,29 @@ export function App() {
               id: currentRecord.id,
               userId: currentRecord.userId,
               createdAt: currentRecord.createdAt,
+              deletedAt: currentRecord.deletedAt,
             })
           : currentRecord,
+      ),
+    });
+  }
+
+  function deleteFuelRecord(recordId: string) {
+    if (!currentUser) return;
+    commit({
+      ...store,
+      fuelRecords: store.fuelRecords.map((record) =>
+        record.id === recordId && record.userId === currentUser.id ? softDeleteEntity(record) : record,
+      ),
+    });
+  }
+
+  function restoreFuelRecord(recordId: string) {
+    if (!currentUser) return;
+    commit({
+      ...store,
+      fuelRecords: store.fuelRecords.map((record) =>
+        record.id === recordId && record.userId === currentUser.id ? restoreEntity(record) : record,
       ),
     });
   }
@@ -178,6 +202,9 @@ export function App() {
   const activeVehicleId = selectedVehicleId || userVehicles[0]?.id || "";
   const activeVehicle = userVehicles.find((vehicle) => vehicle.id === activeVehicleId);
   const fuelRecords = filterActive(store.fuelRecords)
+    .filter((record) => record.userId === currentUser.id && record.vehicleId === activeVehicleId)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const deletedFuelRecords = filterDeleted(store.fuelRecords)
     .filter((record) => record.userId === currentUser.id && record.vehicleId === activeVehicleId)
     .sort((a, b) => b.date.localeCompare(a.date));
   const washRecords = filterActive(store.washRecords)
@@ -241,8 +268,11 @@ export function App() {
                 <FuelTab
                   vehicle={activeVehicle}
                   fuelRecords={fuelRecords}
+                  deletedFuelRecords={deletedFuelRecords}
                   onAdd={addFuelRecord}
                   onUpdate={updateFuelRecord}
+                  onDelete={deleteFuelRecord}
+                  onRestore={restoreFuelRecord}
                 />
               )}
               {activeTab === "wash" && activeVehicle && (
@@ -309,13 +339,19 @@ function TabBar({ activeTab, onChange }: { activeTab: AppTab; onChange: (tab: Ap
 function FuelTab({
   vehicle,
   fuelRecords,
+  deletedFuelRecords,
   onAdd,
   onUpdate,
+  onDelete,
+  onRestore,
 }: {
   vehicle: Vehicle;
   fuelRecords: FuelRecord[];
+  deletedFuelRecords: FuelRecord[];
   onAdd: (record: Omit<FuelRecord, "id" | "userId">) => void;
   onUpdate: (recordId: string, record: Omit<FuelRecord, "id" | "userId">) => void;
+  onDelete: (recordId: string) => void;
+  onRestore: (recordId: string) => void;
 }) {
   const [dateFilter, setDateFilter] = useState<FuelDateFilter>("all");
   const [query, setQuery] = useState("");
@@ -325,6 +361,13 @@ function FuelTab({
         (record) => matchesFuelDateFilter(record, dateFilter) && matchesFuelQuery(record, query),
       ),
     [dateFilter, fuelRecords, query],
+  );
+  const filteredDeletedFuelRecords = useMemo(
+    () =>
+      deletedFuelRecords.filter(
+        (record) => matchesFuelDateFilter(record, dateFilter) && matchesFuelQuery(record, query),
+      ),
+    [dateFilter, deletedFuelRecords, query],
   );
 
   return (
@@ -342,8 +385,11 @@ function FuelTab({
         <FuelForm vehicle={vehicle} onAdd={onAdd} />
         <FuelRecordsPanel
           emptyText="没有符合筛选条件的加油记录"
+          deletedFuelRecords={filteredDeletedFuelRecords}
           fuelRecords={filteredFuelRecords}
           limit={50}
+          onDelete={onDelete}
+          onRestore={onRestore}
           onUpdate={onUpdate}
         />
       </div>
@@ -1537,32 +1583,74 @@ function buildFuelRecord(record: FuelRecord, draft: FuelRecordDraft): Omit<FuelR
 }
 
 function FuelRecordsPanel({
+  deletedFuelRecords = [],
   emptyText = "暂无加油记录",
   fuelRecords,
   limit,
+  onDelete,
+  onRestore,
   onUpdate,
 }: {
+  deletedFuelRecords?: FuelRecord[];
   emptyText?: string;
   fuelRecords: FuelRecord[];
   limit: number;
+  onDelete?: (recordId: string) => void;
+  onRestore?: (recordId: string) => void;
   onUpdate?: (recordId: string, record: Omit<FuelRecord, "id" | "userId">) => void;
 }) {
   const [editingId, setEditingId] = useState<string>("");
-  const visibleRecords = fuelRecords.slice(0, limit);
+  const [recordView, setRecordView] = useState<"active" | "deleted">("active");
+  const isDeletedView = recordView === "deleted";
+  const recordsToShow = isDeletedView ? deletedFuelRecords : fuelRecords;
+  const visibleRecords = recordsToShow.slice(0, limit);
+  const resolvedEmptyText = isDeletedView ? "暂无已删除加油记录" : emptyText;
+
+  function confirmDelete(record: FuelRecord) {
+    if (!onDelete) return;
+    const confirmed = window.confirm(`确定删除 ${fuelRecordTitle(record)} 吗？删除后可以在“已删除”里恢复。`);
+    if (confirmed) onDelete(record.id);
+  }
 
   return (
     <div className="panel">
-      <div className="section-title">
-        <Fuel size={17} />
-        <span>{limit > 6 ? "加油记录" : "最近加油"}</span>
+      <div className="panel-heading-row">
+        <div className="section-title">
+          <Fuel size={17} />
+          <span>{limit > 6 ? "加油记录" : "最近加油"}</span>
+        </div>
+        {onDelete && onRestore && (
+          <div className="segmented-buttons compact" aria-label="加油记录状态">
+            <button
+              className={!isDeletedView ? "filter-button active" : "filter-button"}
+              type="button"
+              onClick={() => {
+                setRecordView("active");
+                setEditingId("");
+              }}
+            >
+              正常 {fuelRecords.length}
+            </button>
+            <button
+              className={isDeletedView ? "filter-button active" : "filter-button"}
+              type="button"
+              onClick={() => {
+                setRecordView("deleted");
+                setEditingId("");
+              }}
+            >
+              已删除 {deletedFuelRecords.length}
+            </button>
+          </div>
+        )}
       </div>
       {visibleRecords.length === 0 ? (
-        <p className="empty">{emptyText}</p>
+        <p className="empty">{resolvedEmptyText}</p>
       ) : (
         <ul className="record-list">
           {visibleRecords.map((record) => (
             <li key={record.id}>
-              {editingId === record.id && onUpdate ? (
+              {editingId === record.id && onUpdate && !isDeletedView ? (
                 <FuelRecordEditor
                   record={record}
                   onCancel={() => setEditingId("")}
@@ -1578,10 +1666,25 @@ function FuelRecordsPanel({
                       <strong>{fuelRecordTitle(record)}</strong>
                       <span>{fuelRecordMeta(record)}</span>
                     </div>
-                    {onUpdate && (
-                      <button className="text-button" type="button" onClick={() => setEditingId(record.id)}>
-                        编辑
-                      </button>
+                    {isDeletedView ? (
+                      onRestore && (
+                        <button className="text-button" type="button" onClick={() => onRestore(record.id)}>
+                          恢复
+                        </button>
+                      )
+                    ) : (
+                      <div className="record-actions">
+                        {onUpdate && (
+                          <button className="text-button" type="button" onClick={() => setEditingId(record.id)}>
+                            编辑
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button className="text-button danger" type="button" onClick={() => confirmDelete(record)}>
+                            删除
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </>

@@ -420,6 +420,18 @@ button {
   font-weight: 800;
 }
 
+.panel-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.panel-heading-row .section-title {
+  margin-bottom: 0;
+}
+
 .section-title.compact {
   margin-bottom: 4px;
 }
@@ -451,6 +463,10 @@ button {
   border: 1px solid #dfe6da;
   border-radius: 8px;
   background: #f6f8f4;
+}
+
+.segmented-buttons.compact {
+  flex: 0 0 auto;
 }
 
 .filter-button {
@@ -842,6 +858,13 @@ select:focus {
   min-width: 0;
 }
 
+.record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .text-button {
   min-height: 32px;
   padding: 0 10px;
@@ -851,6 +874,12 @@ select:focus {
   background: #ffffff;
   font-size: 13px;
   font-weight: 800;
+}
+
+.text-button.danger {
+  border-color: #f0c7bf;
+  color: #8b2f23;
+  background: #fff7f5;
 }
 
 .edit-record-form {
@@ -958,12 +987,18 @@ select:focus {
     text-align: left;
   }
 
+  .panel-heading-row,
   .record-row-header,
   .form-actions {
     grid-template-columns: 1fr;
   }
 
+  .panel-heading-row,
   .form-actions {
     display: grid;
+  }
+
+  .record-actions {
+    justify-content: flex-start;
   }
 }
