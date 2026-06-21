@@ -70,6 +70,7 @@ type Store = {
 };
 
 type AppTab = "overview" | "fuel" | "wash" | "vehicles";
+type FuelDateFilter = "all" | "month" | "year";
 
 const STORAGE_KEY = "car-utils-store-v1";
 
@@ -156,6 +157,49 @@ function compactDate(date: string) {
 
 function stationName(record: FuelRecord) {
   return record.station.trim() || "未记录加油站";
+}
+
+function fuzzyMatch(text: string, query: string) {
+  const normalizedText = text.toLowerCase();
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return true;
+  if (normalizedText.includes(normalizedQuery)) return true;
+
+  let cursor = 0;
+  for (const char of normalizedQuery) {
+    cursor = normalizedText.indexOf(char, cursor);
+    if (cursor === -1) return false;
+    cursor += 1;
+  }
+
+  return true;
+}
+
+function matchesFuelDateFilter(record: FuelRecord, dateFilter: FuelDateFilter) {
+  const now = new Date();
+  const year = String(now.getFullYear());
+  const month = `${year}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  if (dateFilter === "month") return record.date.startsWith(month);
+  if (dateFilter === "year") return record.date.startsWith(year);
+  return true;
+}
+
+function matchesFuelQuery(record: FuelRecord, query: string) {
+  const haystack = [
+    record.station,
+    record.fuelGrade,
+    record.date,
+    record.odometer,
+    record.volume,
+    record.pricePerUnit,
+    record.paidAmount,
+    record.totalCost,
+  ]
+    .filter((value) => value != null)
+    .join(" ");
+
+  return fuzzyMatch(haystack, query);
 }
 
 export function App() {
@@ -293,13 +337,12 @@ export function App() {
                 </>
               )}
               {activeTab === "fuel" && activeVehicle && (
-                <section className="tab-stack">
-                  <FuelInsights vehicle={activeVehicle} fuelRecords={fuelRecords} />
-                  <div className="tab-layout">
-                    <FuelForm vehicle={activeVehicle} onAdd={addFuelRecord} />
-                    <FuelRecordsPanel fuelRecords={fuelRecords} limit={12} onUpdate={updateFuelRecord} />
-                  </div>
-                </section>
+                <FuelTab
+                  vehicle={activeVehicle}
+                  fuelRecords={fuelRecords}
+                  onAdd={addFuelRecord}
+                  onUpdate={updateFuelRecord}
+                />
               )}
               {activeTab === "wash" && activeVehicle && (
                 <section className="tab-layout">
@@ -352,6 +395,121 @@ function TabBar({ activeTab, onChange }: { activeTab: AppTab; onChange: (tab: Ap
         </button>
       ))}
     </nav>
+  );
+}
+
+function FuelTab({
+  vehicle,
+  fuelRecords,
+  onAdd,
+  onUpdate,
+}: {
+  vehicle: Vehicle;
+  fuelRecords: FuelRecord[];
+  onAdd: (record: Omit<FuelRecord, "id" | "userId">) => void;
+  onUpdate: (recordId: string, record: Omit<FuelRecord, "id" | "userId">) => void;
+}) {
+  const [dateFilter, setDateFilter] = useState<FuelDateFilter>("all");
+  const [query, setQuery] = useState("");
+  const filteredFuelRecords = useMemo(
+    () =>
+      fuelRecords.filter(
+        (record) => matchesFuelDateFilter(record, dateFilter) && matchesFuelQuery(record, query),
+      ),
+    [dateFilter, fuelRecords, query],
+  );
+
+  return (
+    <section className="tab-stack">
+      <FuelFilters
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
+        query={query}
+        onQueryChange={setQuery}
+        visibleCount={filteredFuelRecords.length}
+        totalCount={fuelRecords.length}
+      />
+      <FuelInsights vehicle={vehicle} fuelRecords={filteredFuelRecords} />
+      <div className="tab-layout">
+        <FuelForm vehicle={vehicle} onAdd={onAdd} />
+        <FuelRecordsPanel
+          emptyText="没有符合筛选条件的加油记录"
+          fuelRecords={filteredFuelRecords}
+          limit={50}
+          onUpdate={onUpdate}
+        />
+      </div>
+    </section>
+  );
+}
+
+function FuelFilters({
+  dateFilter,
+  onDateFilterChange,
+  query,
+  onQueryChange,
+  visibleCount,
+  totalCount,
+}: {
+  dateFilter: FuelDateFilter;
+  onDateFilterChange: (filter: FuelDateFilter) => void;
+  query: string;
+  onQueryChange: (query: string) => void;
+  visibleCount: number;
+  totalCount: number;
+}) {
+  const filters: { id: FuelDateFilter; label: string }[] = [
+    { id: "all", label: "全部" },
+    { id: "month", label: "本月" },
+    { id: "year", label: "本年" },
+  ];
+
+  return (
+    <section className="panel fuel-filter-panel">
+      <div>
+        <div className="section-title compact">
+          <Fuel size={17} />
+          <span>加油数据筛选</span>
+        </div>
+        <p className="filter-count">
+          显示 {visibleCount} / {totalCount} 条记录
+        </p>
+      </div>
+      <div className="filter-controls">
+        <div className="segmented-buttons" aria-label="日期筛选">
+          {filters.map((filter) => (
+            <button
+              className={dateFilter === filter.id ? "filter-button active" : "filter-button"}
+              key={filter.id}
+              type="button"
+              onClick={() => onDateFilterChange(filter.id)}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+        <label className="search-field">
+          <span>搜索</span>
+          <input
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="加油站、油品、日期、金额..."
+          />
+        </label>
+        {(dateFilter !== "all" || query.trim()) && (
+          <button
+            className="ghost-button clear-filter-button"
+            type="button"
+            onClick={() => {
+              onDateFilterChange("all");
+              onQueryChange("");
+            }}
+          >
+            清除筛选
+          </button>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -856,6 +1014,7 @@ function MiniLineChart({
 }) {
   const validPoints = points.filter((point) => Number.isFinite(point.value));
   const latest = validPoints.at(-1);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   if (validPoints.length < 2) {
     return (
@@ -884,6 +1043,19 @@ function MiniLineChart({
     return { ...point, x, y };
   });
   const polylinePoints = coordinates.map((point) => `${point.x},${point.y}`).join(" ");
+  const activePoint = hoveredIndex == null ? null : coordinates[hoveredIndex];
+
+  function updateHoveredPoint(event: React.PointerEvent<SVGSVGElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const pointerX = ((event.clientX - rect.left) / rect.width) * width;
+    const closestIndex = coordinates.reduce((bestIndex, point, index) => {
+      const bestDistance = Math.abs(coordinates[bestIndex].x - pointerX);
+      const distance = Math.abs(point.x - pointerX);
+      return distance < bestDistance ? index : bestIndex;
+    }, 0);
+
+    setHoveredIndex(closestIndex);
+  }
 
   return (
     <div className="chart-card">
@@ -893,15 +1065,48 @@ function MiniLineChart({
           {latest ? number(latest.value, digits) : "-"} <small>{unit}</small>
         </strong>
       </div>
-      <svg className="line-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}>
-        <line x1={left} x2={right} y1={top} y2={top} />
-        <line x1={left} x2={right} y1={(top + bottom) / 2} y2={(top + bottom) / 2} />
-        <line x1={left} x2={right} y1={bottom} y2={bottom} />
-        <polyline points={polylinePoints} />
-        {coordinates.map((point) => (
-          <circle cx={point.x} cy={point.y} key={`${point.label}-${point.x}`} r="3.5" />
-        ))}
-      </svg>
+      <div className="chart-plot">
+        <svg
+          className="line-chart"
+          onBlur={() => setHoveredIndex(null)}
+          onFocus={() => setHoveredIndex(coordinates.length - 1)}
+          onPointerLeave={() => setHoveredIndex(null)}
+          onPointerMove={updateHoveredPoint}
+          tabIndex={0}
+          viewBox={`0 0 ${width} ${height}`}
+          role="img"
+          aria-label={title}
+        >
+          <line x1={left} x2={right} y1={top} y2={top} />
+          <line x1={left} x2={right} y1={(top + bottom) / 2} y2={(top + bottom) / 2} />
+          <line x1={left} x2={right} y1={bottom} y2={bottom} />
+          {activePoint && <line className="active-guide" x1={activePoint.x} x2={activePoint.x} y1={top} y2={bottom} />}
+          <polyline points={polylinePoints} />
+          {coordinates.map((point, index) => (
+            <circle
+              className={index === hoveredIndex ? "active-dot" : undefined}
+              cx={point.x}
+              cy={point.y}
+              key={`${point.label}-${point.x}`}
+              r={index === hoveredIndex ? "5" : "3.5"}
+            />
+          ))}
+        </svg>
+        {activePoint && (
+          <div
+            className="chart-tooltip"
+            style={{
+              left: `${(activePoint.x / width) * 100}%`,
+              top: `${(activePoint.y / height) * 100}%`,
+            }}
+          >
+            <strong>
+              {number(activePoint.value, digits)} {unit}
+            </strong>
+            <span>{activePoint.label}</span>
+          </div>
+        )}
+      </div>
       <div className="chart-footer">
         <span>{validPoints[0].label}</span>
         <span>
@@ -1285,10 +1490,12 @@ function buildFuelRecord(record: FuelRecord, draft: FuelRecordDraft): Omit<FuelR
 }
 
 function FuelRecordsPanel({
+  emptyText = "暂无加油记录",
   fuelRecords,
   limit,
   onUpdate,
 }: {
+  emptyText?: string;
   fuelRecords: FuelRecord[];
   limit: number;
   onUpdate?: (recordId: string, record: Omit<FuelRecord, "id" | "userId">) => void;
@@ -1303,7 +1510,7 @@ function FuelRecordsPanel({
         <span>{limit > 6 ? "加油记录" : "最近加油"}</span>
       </div>
       {visibleRecords.length === 0 ? (
-        <p className="empty">暂无加油记录</p>
+        <p className="empty">{emptyText}</p>
       ) : (
         <ul className="record-list">
           {visibleRecords.map((record) => (
