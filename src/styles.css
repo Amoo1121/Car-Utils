@@ -522,7 +522,8 @@ select:focus {
 }
 
 .primary-button,
-.secondary-button {
+.secondary-button,
+.ghost-button {
   min-height: 44px;
   padding: 0 14px;
   border: 0;
@@ -538,6 +539,12 @@ select:focus {
 .secondary-button {
   color: #ffffff;
   background: #25332a;
+}
+
+.ghost-button {
+  border: 1px solid #d7dfd1;
+  color: #4b564e;
+  background: #ffffff;
 }
 
 .full-width {
@@ -584,6 +591,58 @@ select:focus {
   padding: 12px;
   border-radius: 8px;
   background: #f6f8f4;
+}
+
+.record-row-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.record-row-header div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.text-button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #d7dfd1;
+  border-radius: 8px;
+  color: #25332a;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.edit-record-form {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #dfe6da;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.edit-record-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.edit-record-title span {
+  color: #667166;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
 .blank-state {
@@ -646,5 +705,14 @@ select:focus {
 
   .station-performance-row div:last-child {
     text-align: left;
+  }
+
+  .record-row-header,
+  .form-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions {
+    display: grid;
   }
 }

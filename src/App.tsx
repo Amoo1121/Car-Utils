@@ -205,6 +205,18 @@ export function App() {
     });
   }
 
+  function updateFuelRecord(recordId: string, record: Omit<FuelRecord, "id" | "userId">) {
+    if (!currentUser) return;
+    commit({
+      ...store,
+      fuelRecords: store.fuelRecords.map((currentRecord) =>
+        currentRecord.id === recordId && currentRecord.userId === currentUser.id
+          ? { ...record, id: currentRecord.id, userId: currentRecord.userId }
+          : currentRecord,
+      ),
+    });
+  }
+
   function addWashRecord(record: Omit<WashRecord, "id" | "userId">) {
     if (!currentUser) return;
     commit({
@@ -285,7 +297,7 @@ export function App() {
                   <FuelInsights vehicle={activeVehicle} fuelRecords={fuelRecords} />
                   <div className="tab-layout">
                     <FuelForm vehicle={activeVehicle} onAdd={addFuelRecord} />
-                    <FuelRecordsPanel fuelRecords={fuelRecords} limit={12} />
+                    <FuelRecordsPanel fuelRecords={fuelRecords} limit={12} onUpdate={updateFuelRecord} />
                   </div>
                 </section>
               )}
@@ -637,8 +649,25 @@ type StationSummary = {
 };
 
 type StationPerformance = StationSummary & {
+  grade: string;
   intervals: number;
+  avgKmPerLiter: number;
   avgConsumption: number;
+  relativeToAverage: number;
+};
+
+type FuelRecordDraft = {
+  date: string;
+  odometer: string;
+  fuelGrade: string;
+  customFuelGrade: string;
+  volume: string;
+  pricePerUnit: string;
+  paidAmount: string;
+  fuelLevelBefore: string;
+  fuelLevelAfter: string;
+  station: string;
+  fullTank: boolean;
 };
 
 function FuelInsights({ vehicle, fuelRecords }: { vehicle: Vehicle; fuelRecords: FuelRecord[] }) {
@@ -655,13 +684,22 @@ function FuelInsights({ vehicle, fuelRecords }: { vehicle: Vehicle; fuelRecords:
     }));
 
     const stationSummaryMap = new Map<string, { count: number; unitPriceTotal: number; volume: number }>();
+    const qualitySummaryMap = new Map<string, { count: number; unitPriceTotal: number; volume: number }>();
     ordered.forEach((record) => {
       const station = stationName(record);
+      const grade = record.fuelGrade || "未记录油品";
+      const qualityKey = `${station}__${grade}`;
       const current = stationSummaryMap.get(station) ?? { count: 0, unitPriceTotal: 0, volume: 0 };
       current.count += 1;
       current.unitPriceTotal += paidUnitPrice(record);
       current.volume += record.volume;
       stationSummaryMap.set(station, current);
+
+      const currentQuality = qualitySummaryMap.get(qualityKey) ?? { count: 0, unitPriceTotal: 0, volume: 0 };
+      currentQuality.count += 1;
+      currentQuality.unitPriceTotal += paidUnitPrice(record);
+      currentQuality.volume += record.volume;
+      qualitySummaryMap.set(qualityKey, currentQuality);
     });
 
     const stationSummaries: StationSummary[] = [...stationSummaryMap.entries()]
@@ -678,13 +716,14 @@ function FuelInsights({ vehicle, fuelRecords }: { vehicle: Vehicle; fuelRecords:
     const recordsWithOdometer = ordered
       .filter((record) => typeof record.odometer === "number")
       .sort((a, b) => a.odometer! - b.odometer!);
-    const performanceMap = new Map<string, { intervals: number; consumptionTotal: number }>();
+    const performanceMap = new Map<string, { intervals: number; distanceTotal: number; consumedTotal: number }>();
 
     if (tankSize) {
       for (let index = 1; index < recordsWithOdometer.length; index += 1) {
         const previous = recordsWithOdometer[index - 1];
         const current = recordsWithOdometer[index];
         const previousStation = previous.station.trim();
+        const previousGrade = previous.fuelGrade || "未记录油品";
         const distance = current.odometer! - previous.odometer!;
         const hasFuelLevels = previous.fuelLevelAfter != null && current.fuelLevelBefore != null;
 
@@ -696,27 +735,42 @@ function FuelInsights({ vehicle, fuelRecords }: { vehicle: Vehicle; fuelRecords:
         if (consumedVolume <= 0 || consumption < 2 || consumption > 30) continue;
 
         const station = stationName(previous);
-        const currentPerformance = performanceMap.get(station) ?? { intervals: 0, consumptionTotal: 0 };
+        const qualityKey = `${station}__${previousGrade}`;
+        const currentPerformance = performanceMap.get(qualityKey) ?? {
+          intervals: 0,
+          distanceTotal: 0,
+          consumedTotal: 0,
+        };
         currentPerformance.intervals += 1;
-        currentPerformance.consumptionTotal += consumption;
-        performanceMap.set(station, currentPerformance);
+        currentPerformance.distanceTotal += distance;
+        currentPerformance.consumedTotal += consumedVolume;
+        performanceMap.set(qualityKey, currentPerformance);
       }
     }
 
+    const overallDistance = [...performanceMap.values()].reduce((sum, performance) => sum + performance.distanceTotal, 0);
+    const overallConsumed = [...performanceMap.values()].reduce((sum, performance) => sum + performance.consumedTotal, 0);
+    const overallKmPerLiter = overallConsumed > 0 ? overallDistance / overallConsumed : 0;
     const stationPerformances: StationPerformance[] = [...performanceMap.entries()]
-      .map(([station, performance]) => {
-        const summary = stationSummaries.find((item) => item.station === station);
+      .map(([qualityKey, performance]) => {
+        const [station, grade] = qualityKey.split("__");
+        const summary = qualitySummaryMap.get(qualityKey);
+        const avgKmPerLiter = performance.distanceTotal / performance.consumedTotal;
+        const avgConsumption = (performance.consumedTotal / performance.distanceTotal) * 100;
         return {
           station,
+          grade,
           intervals: performance.intervals,
-          avgConsumption: performance.consumptionTotal / performance.intervals,
-          recordCount: summary?.recordCount ?? 0,
-          avgUnitPrice: summary?.avgUnitPrice ?? 0,
-          totalVolume: summary?.totalVolume ?? 0,
+          avgKmPerLiter,
+          avgConsumption,
+          relativeToAverage: overallKmPerLiter > 0 ? (avgKmPerLiter / overallKmPerLiter - 1) * 100 : 0,
+          recordCount: summary?.count ?? 0,
+          avgUnitPrice: summary ? summary.unitPriceTotal / summary.count : 0,
+          totalVolume: summary?.volume ?? 0,
         };
       })
       .filter((item) => item.intervals >= 2)
-      .sort((a, b) => a.avgConsumption - b.avgConsumption);
+      .sort((a, b) => b.avgKmPerLiter - a.avgKmPerLiter);
 
     const canCompareStations = stationPerformances.length >= 2;
 
@@ -728,6 +782,7 @@ function FuelInsights({ vehicle, fuelRecords }: { vehicle: Vehicle; fuelRecords:
       canCompareStations,
       hasTankSize: Boolean(tankSize),
       validIntervalCount: [...performanceMap.values()].reduce((sum, item) => sum + item.intervals, 0),
+      overallKmPerLiter,
     };
   }, [fuelRecords, vehicle.energyType, vehicle.tankSize]);
 
@@ -747,23 +802,30 @@ function FuelInsights({ vehicle, fuelRecords }: { vehicle: Vehicle; fuelRecords:
       <div className="panel insight-panel">
         <div className="section-title">
           <Info size={17} />
-          <span>加油站参考</span>
+          <span>油品耐跑参考</span>
         </div>
         {insights.canCompareStations ? (
           <>
             <p className="analysis-note">
-              使用“上一笔加油后油位到下一笔加油前油位”和总里程估算区间消耗，按上一笔加油站归因；路况、天气和驾驶方式仍会影响结果。
+              使用“上一笔加油后油位到下一笔加油前油位”和总里程估算区间消耗，按上一笔加油站与油品归因；数值越高表示同样一升油跑得越远。路况、天气和驾驶方式仍会影响结果。
             </p>
             <div className="station-performance-list">
               {insights.stationPerformances.map((station) => (
-                <div className="station-performance-row" key={station.station}>
+                <div className="station-performance-row" key={`${station.station}-${station.grade}`}>
                   <div>
-                    <strong>{station.station}</strong>
-                    <span>{station.intervals} 段可信区间</span>
+                    <strong>
+                      {station.station} · {station.grade}
+                    </strong>
+                    <span>
+                      {station.intervals} 段可信区间 · {station.recordCount} 次加油
+                    </span>
                   </div>
                   <div>
-                    <strong>{number(station.avgConsumption, 2)} L/100km</strong>
-                    <span>均价 {number(station.avgUnitPrice, 2)} 元/L</span>
+                    <strong>{number(station.avgKmPerLiter, 2)} km/L</strong>
+                    <span>
+                      {station.relativeToAverage >= 0 ? "+" : ""}
+                      {number(station.relativeToAverage, 1)}% · {number(station.avgConsumption, 2)} L/100km
+                    </span>
                   </div>
                 </div>
               ))}
@@ -771,7 +833,7 @@ function FuelInsights({ vehicle, fuelRecords }: { vehicle: Vehicle; fuelRecords:
           </>
         ) : (
           <p className="empty">
-            暂不做加油站表现判断。需要至少两个加油站各有 2 段可信区间；可信区间需要两笔总里程、上一笔加油后油位、下一笔加油前油位{insights.hasTankSize ? "" : "，以及车辆油箱容量"}。
+            暂不做油品耐跑判断。需要至少两组“加油站 + 油品”各有 2 段可信区间；可信区间需要两笔总里程、上一笔加油后油位、下一笔加油前油位{insights.hasTankSize ? "" : "，以及车辆油箱容量"}。
           </p>
         )}
 
@@ -1165,31 +1227,268 @@ function Records({ fuelRecords, washRecords }: { fuelRecords: FuelRecord[]; wash
   );
 }
 
-function FuelRecordsPanel({ fuelRecords, limit }: { fuelRecords: FuelRecord[]; limit: number }) {
+function fuelRecordTitle(record: FuelRecord) {
+  return `${record.fuelGrade ? `${record.fuelGrade} · ` : ""}${record.volume} L · ${money(recordCost(record))}`;
+}
+
+function fuelRecordMeta(record: FuelRecord) {
+  return [
+    record.date,
+    record.odometer != null ? `${record.odometer} km` : "",
+    record.station,
+    record.fuelLevelBefore != null || record.fuelLevelAfter != null
+      ? `油位 ${record.fuelLevelBefore ?? "-"}% -> ${record.fuelLevelAfter ?? "-"}%`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function createFuelDraft(record: FuelRecord): FuelRecordDraft {
+  const knownFuelGrade = record.fuelGrade && fuelGrades.includes(record.fuelGrade);
+
+  return {
+    date: record.date,
+    odometer: record.odometer != null ? String(record.odometer) : "",
+    fuelGrade: knownFuelGrade ? record.fuelGrade! : record.fuelGrade ? "其他" : "95#",
+    customFuelGrade: knownFuelGrade ? "" : record.fuelGrade ?? "",
+    volume: String(record.volume),
+    pricePerUnit: String(record.pricePerUnit),
+    paidAmount: record.paidAmount != null ? String(record.paidAmount) : "",
+    fuelLevelBefore: record.fuelLevelBefore != null ? String(record.fuelLevelBefore) : "",
+    fuelLevelAfter: record.fuelLevelAfter != null ? String(record.fuelLevelAfter) : "",
+    station: record.station,
+    fullTank: record.fullTank,
+  };
+}
+
+function buildFuelRecord(record: FuelRecord, draft: FuelRecordDraft): Omit<FuelRecord, "id" | "userId"> {
+  const volume = Number(draft.volume);
+  const pricePerUnit = Number(draft.pricePerUnit);
+  const totalCost = volume * pricePerUnit;
+  const fuelGrade = draft.fuelGrade === "其他" ? draft.customFuelGrade.trim() || "其他" : draft.fuelGrade;
+
+  return {
+    vehicleId: record.vehicleId,
+    date: draft.date,
+    odometer: draft.odometer ? Number(draft.odometer) : undefined,
+    volume,
+    pricePerUnit,
+    fuelGrade,
+    paidAmount: draft.paidAmount ? Number(draft.paidAmount) : undefined,
+    fuelLevelBefore: draft.fuelLevelBefore ? Number(draft.fuelLevelBefore) : undefined,
+    fuelLevelAfter: draft.fuelLevelAfter ? Number(draft.fuelLevelAfter) : undefined,
+    totalCost,
+    station: draft.station,
+    fullTank: draft.fullTank,
+  };
+}
+
+function FuelRecordsPanel({
+  fuelRecords,
+  limit,
+  onUpdate,
+}: {
+  fuelRecords: FuelRecord[];
+  limit: number;
+  onUpdate?: (recordId: string, record: Omit<FuelRecord, "id" | "userId">) => void;
+}) {
+  const [editingId, setEditingId] = useState<string>("");
+  const visibleRecords = fuelRecords.slice(0, limit);
+
   return (
     <div className="panel">
       <div className="section-title">
         <Fuel size={17} />
         <span>{limit > 6 ? "加油记录" : "最近加油"}</span>
       </div>
-      <RecordList
-        empty="暂无加油记录"
-        rows={fuelRecords.slice(0, limit).map((record) => ({
-          id: record.id,
-          title: `${record.fuelGrade ? `${record.fuelGrade} · ` : ""}${record.volume} L · ${money(record.paidAmount ?? record.totalCost)}`,
-          meta: [
-            record.date,
-            record.odometer != null ? `${record.odometer} km` : "",
-            record.station,
-            record.fuelLevelBefore != null || record.fuelLevelAfter != null
-              ? `油位 ${record.fuelLevelBefore ?? "-"}% -> ${record.fuelLevelAfter ?? "-"}%`
-              : "",
-          ]
-            .filter(Boolean)
-            .join(" · "),
-        }))}
-      />
+      {visibleRecords.length === 0 ? (
+        <p className="empty">暂无加油记录</p>
+      ) : (
+        <ul className="record-list">
+          {visibleRecords.map((record) => (
+            <li key={record.id}>
+              {editingId === record.id && onUpdate ? (
+                <FuelRecordEditor
+                  record={record}
+                  onCancel={() => setEditingId("")}
+                  onSave={(nextRecord) => {
+                    onUpdate(record.id, nextRecord);
+                    setEditingId("");
+                  }}
+                />
+              ) : (
+                <>
+                  <div className="record-row-header">
+                    <div>
+                      <strong>{fuelRecordTitle(record)}</strong>
+                      <span>{fuelRecordMeta(record)}</span>
+                    </div>
+                    {onUpdate && (
+                      <button className="text-button" type="button" onClick={() => setEditingId(record.id)}>
+                        编辑
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
+  );
+}
+
+function FuelRecordEditor({
+  record,
+  onCancel,
+  onSave,
+}: {
+  record: FuelRecord;
+  onCancel: () => void;
+  onSave: (record: Omit<FuelRecord, "id" | "userId">) => void;
+}) {
+  const [draft, setDraft] = useState<FuelRecordDraft>(() => createFuelDraft(record));
+  const totalCost = Number(draft.volume) * Number(draft.pricePerUnit);
+  const paidAmount = draft.paidAmount ? Number(draft.paidAmount) : totalCost;
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!draft.volume || !draft.pricePerUnit) return;
+    onSave(buildFuelRecord(record, draft));
+  }
+
+  return (
+    <form className="edit-record-form" onSubmit={submit}>
+      <div className="edit-record-title">
+        <strong>编辑加油记录</strong>
+        <span>{record.date}</span>
+      </div>
+      <div className="two-cols">
+        <label>
+          日期
+          <input type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} />
+        </label>
+        <label>
+          加油时总里程 km
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            value={draft.odometer}
+            onChange={(event) => setDraft({ ...draft, odometer: event.target.value })}
+            placeholder="可选"
+          />
+        </label>
+      </div>
+      <div className="two-cols">
+        <label>
+          油品
+          <select value={draft.fuelGrade} onChange={(event) => setDraft({ ...draft, fuelGrade: event.target.value })}>
+            {fuelGrades.map((grade) => (
+              <option key={grade}>{grade}</option>
+            ))}
+          </select>
+        </label>
+        {draft.fuelGrade === "其他" ? (
+          <label>
+            自定义油品
+            <input
+              value={draft.customFuelGrade}
+              onChange={(event) => setDraft({ ...draft, customFuelGrade: event.target.value })}
+              placeholder="例如 V-Power 98"
+            />
+          </label>
+        ) : (
+          <label>
+            加油站
+            <input value={draft.station} onChange={(event) => setDraft({ ...draft, station: event.target.value })} />
+          </label>
+        )}
+      </div>
+      {draft.fuelGrade === "其他" && (
+        <label>
+          加油站
+          <input value={draft.station} onChange={(event) => setDraft({ ...draft, station: event.target.value })} />
+        </label>
+      )}
+      <div className="two-cols">
+        <label>
+          升数 L
+          <input
+            required
+            type="number"
+            min="0"
+            step="0.01"
+            value={draft.volume}
+            onChange={(event) => setDraft({ ...draft, volume: event.target.value })}
+          />
+        </label>
+        <label>
+          表显单价
+          <input
+            required
+            type="number"
+            min="0"
+            step="0.01"
+            value={draft.pricePerUnit}
+            onChange={(event) => setDraft({ ...draft, pricePerUnit: event.target.value })}
+          />
+        </label>
+      </div>
+      <div className="two-cols">
+        <label>
+          实付金额
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={draft.paidAmount}
+            onChange={(event) => setDraft({ ...draft, paidAmount: event.target.value })}
+            placeholder={money(totalCost || 0)}
+          />
+        </label>
+        <label>
+          加油后油位 %
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={draft.fuelLevelAfter}
+            onChange={(event) => setDraft({ ...draft, fuelLevelAfter: event.target.value })}
+            placeholder={draft.fullTank ? "100" : "可选"}
+          />
+        </label>
+      </div>
+      <label>
+        加油前油位 %
+        <input
+          type="number"
+          min="0"
+          max="100"
+          value={draft.fuelLevelBefore}
+          onChange={(event) => setDraft({ ...draft, fuelLevelBefore: event.target.value })}
+          placeholder="例如 20"
+        />
+      </label>
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={draft.fullTank}
+          onChange={(event) => setDraft({ ...draft, fullTank: event.target.checked })}
+        />
+        加满
+      </label>
+      <div className="form-actions">
+        <button className="primary-button" type="submit">
+          保存 · {money(paidAmount || 0)}
+        </button>
+        <button className="ghost-button" type="button" onClick={onCancel}>
+          取消
+        </button>
+      </div>
+    </form>
   );
 }
 
