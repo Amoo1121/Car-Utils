@@ -897,9 +897,20 @@ button {
   gap: 10px;
 }
 
+.warehouse-toolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.warehouse-filter {
+  width: min(240px, 100%);
+}
+
 .warehouse-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1.2fr) minmax(170px, 0.7fr) auto;
   gap: 12px;
   align-items: center;
   padding: 12px;
@@ -914,6 +925,10 @@ button {
 }
 
 .warehouse-row div:last-child {
+  text-align: right;
+}
+
+.warehouse-stock {
   text-align: right;
 }
 
@@ -932,6 +947,13 @@ button {
   grid-column: 1 / -1;
   display: grid;
   gap: 10px;
+}
+
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+  color: #667166;
+  background: #eef2ea;
 }
 
 label {
@@ -1277,9 +1299,19 @@ select:focus {
   }
 
   .warehouse-row div:last-child,
+  .warehouse-stock,
   .warehouse-row-actions {
     text-align: left;
     justify-content: flex-start;
+  }
+
+  .warehouse-toolbar {
+    display: grid;
+    align-items: stretch;
+  }
+
+  .warehouse-filter {
+    width: 100%;
   }
 
   .panel-heading-row,

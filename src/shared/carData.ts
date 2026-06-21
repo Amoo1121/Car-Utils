@@ -117,9 +117,9 @@ export type WashProductUsage = {
 export type WashProductPurchase = {
   id: string;
   date: string;
-  purchasePrice: number;
-  capacity: number;
-  capacityUnit: "ml" | "L" | "g" | "kg" | "pcs";
+  purchasePrice?: number;
+  capacity?: number;
+  capacityUnit?: "ml" | "L" | "g" | "kg" | "pcs";
   note?: string;
 };
 
@@ -615,8 +615,8 @@ function migrateWashProduct(value: WashProduct, deviceId: string, fallbackTime: 
       ? value.purchases.map((purchase) => ({
           id: purchase.id || makeFallbackId("wash_purchase"),
           date: purchase.date || today(),
-          purchasePrice: normalizeNumber(purchase.purchasePrice, 0),
-          capacity: normalizeNumber(purchase.capacity, 0),
+          purchasePrice: purchase.purchasePrice == null ? undefined : normalizeNumber(purchase.purchasePrice, 0),
+          capacity: purchase.capacity == null ? undefined : normalizeNumber(purchase.capacity, 0),
           capacityUnit: purchase.capacityUnit || "ml",
           note: purchase.note,
         }))
