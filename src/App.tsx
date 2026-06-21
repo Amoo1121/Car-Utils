@@ -48,6 +48,8 @@ import {
   type Vehicle,
   type WashRecord,
   type WashProductUsage,
+  type WashProduct,
+  type WashProductPurchase,
   type WashType,
 } from "./shared/carData";
 
@@ -225,6 +227,25 @@ export function App() {
     });
   }
 
+  function addWashProduct(product: Omit<WashProduct, "id" | "userId">) {
+    if (!currentUser) return undefined;
+    const nextProduct = withCreatedTimestamps({ ...product, id: makeId("wash_product"), userId: currentUser.id });
+    commit({ ...store, washProducts: [...store.washProducts, nextProduct] });
+    return nextProduct;
+  }
+
+  function addWashProductPurchase(productId: string, purchase: WashProductPurchase) {
+    if (!currentUser) return;
+    commit({
+      ...store,
+      washProducts: store.washProducts.map((product) =>
+        product.id === productId && product.userId === currentUser.id
+          ? withUpdatedTimestamp({ ...product, purchases: [...product.purchases, purchase] })
+          : product,
+      ),
+    });
+  }
+
   function importStore(importedStore: Store) {
     const next = mergeStores(store, importedStore);
     commit(next);
@@ -253,6 +274,9 @@ export function App() {
   const deletedWashRecords = filterDeleted(store.washRecords)
     .filter((record) => record.userId === currentUser.id && record.vehicleId === activeVehicleId)
     .sort((a, b) => b.date.localeCompare(a.date));
+  const washProducts = filterActive(store.washProducts)
+    .filter((product) => product.userId === currentUser.id)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <main className="app-shell">
@@ -320,13 +344,28 @@ export function App() {
               )}
               {activeTab === "wash" && activeVehicle && (
                 <section className="tab-layout">
-                  <WashForm vehicle={activeVehicle} onAdd={addWashRecord} />
+                  <div className="tab-stack">
+                    <WashForm
+                      onAdd={addWashRecord}
+                      onCreateProduct={addWashProduct}
+                      vehicle={activeVehicle}
+                      washProducts={washProducts}
+                    />
+                    <WashProductWarehouse
+                      onAdd={addWashProduct}
+                      onReplenish={addWashProductPurchase}
+                      washProducts={washProducts}
+                      washRecords={washRecords}
+                    />
+                  </div>
                   <WashRecordsPanel
                     deletedWashRecords={deletedWashRecords}
                     limit={12}
                     onDelete={deleteWashRecord}
+                    onCreateProduct={addWashProduct}
                     onRestore={restoreWashRecord}
                     onUpdate={updateWashRecord}
+                    washProducts={washProducts}
                     washRecords={washRecords}
                   />
                 </section>
@@ -594,6 +633,7 @@ function DataSyncPanel({
             <DataCount label="车辆" value={counts.vehicles} />
             <DataCount label="加油" value={counts.fuelRecords} />
             <DataCount label="洗车" value={counts.washRecords} />
+            <DataCount label="耗材" value={counts.washProducts} />
             <DataCount label="费用" value={counts.expenseRecords} />
           </div>
           <div className="sync-actions">
@@ -653,7 +693,7 @@ function DataCount({ label, value }: { label: string; value: number }) {
 }
 
 function formatCounts(counts: StoreCounts) {
-  return `${counts.users} 个账户、${counts.vehicles} 台车、${counts.fuelRecords} 条加油、${counts.washRecords} 条洗车、${counts.expenseRecords} 条费用`;
+  return `${counts.users} 个账户、${counts.vehicles} 台车、${counts.fuelRecords} 条加油、${counts.washRecords} 条洗车、${counts.washProducts} 个耗材、${counts.expenseRecords} 条费用`;
 }
 
 function LoginScreen({ onLogin }: { onLogin: (name: string, email: string) => void }) {
@@ -973,6 +1013,7 @@ type FuelRecordDraft = {
 
 type WashProductUsageDraft = {
   id: string;
+  productId: string;
   name: string;
   category: string;
   step: string;
@@ -1003,6 +1044,17 @@ type WashRecordDraft = {
   nextSuggestedDate: string;
   notes: string;
   products: WashProductUsageDraft[];
+};
+
+type WashProductDraft = {
+  name: string;
+  brand: string;
+  category: string;
+  purchaseDate: string;
+  purchasePrice: string;
+  capacity: string;
+  capacityUnit: WashProductPurchase["capacityUnit"];
+  note: string;
 };
 
 const washTypeOptions: { id: WashType; label: string }[] = [
@@ -1522,10 +1574,14 @@ function FuelForm({
 
 function WashForm({
   vehicle,
+  washProducts,
   onAdd,
+  onCreateProduct,
 }: {
   vehicle: Vehicle;
+  washProducts: WashProduct[];
   onAdd: (record: Omit<WashRecord, "id" | "userId">) => void;
+  onCreateProduct: (product: Omit<WashProduct, "id" | "userId">) => WashProduct | undefined;
 }) {
   const [draft, setDraft] = useState<WashRecordDraft>(() => createEmptyWashDraft());
 
@@ -1541,7 +1597,12 @@ function WashForm({
         <Sparkles size={17} />
         <span>记录洗车</span>
       </div>
-      <WashRecordFields draft={draft} onChange={setDraft} />
+      <WashRecordFields
+        draft={draft}
+        onChange={setDraft}
+        onCreateProduct={onCreateProduct}
+        washProducts={washProducts}
+      />
       <button className="primary-button" type="submit">
         保存洗车记录 · {money(resolveWashCost(draft))}
       </button>
@@ -1573,6 +1634,7 @@ function createEmptyWashDraft(washType: WashType = "diy"): WashRecordDraft {
 function createEmptyWashProductDraft(): WashProductUsageDraft {
   return {
     id: makeId("wash_product_usage"),
+    productId: "",
     name: "",
     category: "预洗液",
     step: "预洗",
@@ -1616,6 +1678,7 @@ function createWashDraft(record: WashRecord): WashRecordDraft {
 function createWashProductDraft(product: WashProductUsage): WashProductUsageDraft {
   return {
     id: product.id ?? makeId("wash_product_usage"),
+    productId: product.productId ?? "",
     name: product.name,
     category: product.category ?? "其他",
     step: product.step ?? "其他",
@@ -1667,6 +1730,7 @@ function buildWashProductUsages(products: WashProductUsageDraft[]): WashProductU
       const estimatedCost = product.estimatedCost ? Number(product.estimatedCost) : estimateWashProductCost(product) || undefined;
       return {
         id: product.id,
+        productId: product.productId || undefined,
         name: product.name.trim(),
         category: product.category,
         step: product.step,
@@ -1720,9 +1784,13 @@ function convertWashAmount(amount: number, unit: WashProductUsage["capacityUnit"
 function WashRecordFields({
   draft,
   onChange,
+  onCreateProduct,
+  washProducts,
 }: {
   draft: WashRecordDraft;
   onChange: (draft: WashRecordDraft) => void;
+  onCreateProduct: (product: Omit<WashProduct, "id" | "userId">) => WashProduct | undefined;
+  washProducts: WashProduct[];
 }) {
   const isDiy = draft.washType === "diy";
 
@@ -1737,6 +1805,50 @@ function WashRecordFields({
 
   function removeProduct(productId: string) {
     onChange({ ...draft, products: draft.products.filter((product) => product.id !== productId) });
+  }
+
+  function selectWarehouseProduct(productRowId: string, productId: string) {
+    const selectedProduct = washProducts.find((product) => product.id === productId);
+    if (!selectedProduct) {
+      updateProduct(productRowId, { productId: "" });
+      return;
+    }
+
+    const latestPurchase = selectedProduct.purchases.at(-1);
+    updateProduct(productRowId, {
+      productId: selectedProduct.id,
+      name: selectedProduct.name,
+      category: selectedProduct.category,
+      purchasePrice: latestPurchase ? String(latestPurchase.purchasePrice) : "",
+      capacity: latestPurchase ? String(latestPurchase.capacity) : "",
+      capacityUnit: latestPurchase?.capacityUnit ?? "ml",
+    });
+  }
+
+  function createWarehouseProductFromUsage(product: WashProductUsageDraft) {
+    if (!product.name.trim()) return;
+
+    const purchasePrice = Number(product.purchasePrice);
+    const capacity = Number(product.capacity);
+    const nextProduct = onCreateProduct({
+      type: "washProduct",
+      name: product.name.trim(),
+      category: product.category || "其他",
+      purchases:
+        purchasePrice > 0 && capacity > 0
+          ? [
+              {
+                id: makeId("wash_purchase"),
+                date: draft.date,
+                purchasePrice,
+                capacity,
+                capacityUnit: product.capacityUnit ?? "ml",
+              },
+            ]
+          : [],
+    });
+
+    if (nextProduct) updateProduct(product.id, { productId: nextProduct.id });
   }
 
   return (
@@ -1875,6 +1987,17 @@ function WashRecordFields({
               const estimatedCost = estimateWashProductCost(product);
               return (
                 <div className="product-usage-row" key={product.id}>
+                  <label>
+                    仓库耗材
+                    <select value={product.productId} onChange={(event) => selectWarehouseProduct(product.id, event.target.value)}>
+                      <option value="">手动输入 / 当场添加</option>
+                      {washProducts.map((warehouseProduct) => (
+                        <option key={warehouseProduct.id} value={warehouseProduct.id}>
+                          {warehouseProduct.name} · {warehouseProduct.category}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <div className="two-cols">
                     <label>
                       名称
@@ -1992,6 +2115,11 @@ function WashRecordFields({
                     <span className="muted">
                       估算 {estimatedCost > 0 ? money(estimatedCost) : "待补充价格/容量/用量"}
                     </span>
+                    {!product.productId && (
+                      <button className="text-button" type="button" onClick={() => createWarehouseProductFromUsage(product)}>
+                        加入仓库
+                      </button>
+                    )}
                     <button className="text-button danger" type="button" onClick={() => removeProduct(product.id)}>
                       移除
                     </button>
@@ -2018,6 +2146,227 @@ function WashRecordFields({
       </div>
     </>
   );
+}
+
+function createEmptyWashProductWarehouseDraft(): WashProductDraft {
+  return {
+    name: "",
+    brand: "",
+    category: "预洗液",
+    purchaseDate: today(),
+    purchasePrice: "",
+    capacity: "",
+    capacityUnit: "ml",
+    note: "",
+  };
+}
+
+function buildWashProductPurchase(draft: WashProductDraft): WashProductPurchase {
+  return {
+    id: makeId("wash_purchase"),
+    date: draft.purchaseDate,
+    purchasePrice: Number(draft.purchasePrice || 0),
+    capacity: Number(draft.capacity || 0),
+    capacityUnit: draft.capacityUnit,
+    note: draft.note.trim() || undefined,
+  };
+}
+
+function WashProductWarehouse({
+  onAdd,
+  onReplenish,
+  washProducts,
+  washRecords,
+}: {
+  onAdd: (product: Omit<WashProduct, "id" | "userId">) => WashProduct | undefined;
+  onReplenish: (productId: string, purchase: WashProductPurchase) => void;
+  washProducts: WashProduct[];
+  washRecords: WashRecord[];
+}) {
+  const [draft, setDraft] = useState<WashProductDraft>(() => createEmptyWashProductWarehouseDraft());
+  const [replenishProductId, setReplenishProductId] = useState("");
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!draft.name.trim()) return;
+
+    const purchase = buildWashProductPurchase(draft);
+    if (replenishProductId) {
+      onReplenish(replenishProductId, purchase);
+    } else {
+      onAdd({
+        type: "washProduct",
+        name: draft.name.trim(),
+        brand: draft.brand.trim() || undefined,
+        category: draft.category,
+        purchases: purchase.capacity > 0 || purchase.purchasePrice > 0 ? [purchase] : [],
+        note: draft.note.trim() || undefined,
+      });
+    }
+
+    setDraft(createEmptyWashProductWarehouseDraft());
+    setReplenishProductId("");
+  }
+
+  function selectExistingProduct(productId: string) {
+    setReplenishProductId(productId);
+    const product = washProducts.find((item) => item.id === productId);
+    if (!product) {
+      setDraft(createEmptyWashProductWarehouseDraft());
+      return;
+    }
+
+    const latestPurchase = product.purchases.at(-1);
+    setDraft({
+      name: product.name,
+      brand: product.brand ?? "",
+      category: product.category,
+      purchaseDate: today(),
+      purchasePrice: latestPurchase ? String(latestPurchase.purchasePrice) : "",
+      capacity: latestPurchase ? String(latestPurchase.capacity) : "",
+      capacityUnit: latestPurchase?.capacityUnit ?? "ml",
+      note: "",
+    });
+  }
+
+  return (
+    <section className="panel stack">
+      <div className="section-title">
+        <Sparkles size={17} />
+        <span>洗车耗材仓库</span>
+      </div>
+      <form className="stack" onSubmit={submit}>
+        <label>
+          操作
+          <select value={replenishProductId} onChange={(event) => selectExistingProduct(event.target.value)}>
+            <option value="">新增药剂 / 耗材</option>
+            {washProducts.map((product) => (
+              <option key={product.id} value={product.id}>
+                补充：{product.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="two-cols">
+          <label>
+            名称
+            <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+          </label>
+          <label>
+            品牌
+            <input value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value })} />
+          </label>
+        </div>
+        <div className="two-cols">
+          <label>
+            类型
+            <select value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })}>
+              {productCategoryOptions.map((category) => (
+                <option key={category}>{category}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            购买日期
+            <input
+              type="date"
+              value={draft.purchaseDate}
+              onChange={(event) => setDraft({ ...draft, purchaseDate: event.target.value })}
+            />
+          </label>
+        </div>
+        <div className="three-cols">
+          <label>
+            购买价
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={draft.purchasePrice}
+              onChange={(event) => setDraft({ ...draft, purchasePrice: event.target.value })}
+            />
+          </label>
+          <label>
+            容量
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={draft.capacity}
+              onChange={(event) => setDraft({ ...draft, capacity: event.target.value })}
+            />
+          </label>
+          <label>
+            单位
+            <select
+              value={draft.capacityUnit}
+              onChange={(event) => setDraft({ ...draft, capacityUnit: event.target.value as WashProductPurchase["capacityUnit"] })}
+            >
+              <option>ml</option>
+              <option>L</option>
+              <option>g</option>
+              <option>kg</option>
+              <option>pcs</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          备注
+          <input value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} />
+        </label>
+        <button className="secondary-button" type="submit">
+          {replenishProductId ? "记录补货" : "加入仓库"}
+        </button>
+      </form>
+      <div className="warehouse-list">
+        {washProducts.length === 0 ? (
+          <p className="empty">还没有仓库耗材。可以先添加常用的预洗液、洗车液、轮毂清洁剂。</p>
+        ) : (
+          washProducts.map((product) => {
+            const stats = getWashProductStats(product, washRecords);
+            return (
+              <div className="warehouse-row" key={product.id}>
+                <div>
+                  <strong>{product.name}</strong>
+                  <span>
+                    {product.brand ? `${product.brand} · ` : ""}
+                    {product.category} · {product.purchases.length} 次购买
+                  </span>
+                </div>
+                <div>
+                  <strong>{number(stats.remaining, 1)} {stats.unit}</strong>
+                  <span>
+                    已用 {number(stats.used, 1)} {stats.unit} / 购入 {number(stats.purchased, 1)} {stats.unit}
+                  </span>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </section>
+  );
+}
+
+function getWashProductStats(product: WashProduct, washRecords: WashRecord[]) {
+  const unit = product.purchases[0]?.capacityUnit ?? "ml";
+  const purchased = product.purchases.reduce((sum, purchase) => sum + convertWashAmount(purchase.capacity, purchase.capacityUnit), 0);
+  const used = washRecords.reduce((sum, record) => {
+    const recordUsed = (record.products ?? [])
+      .filter((usage) => usage.productId === product.id)
+      .reduce((usageSum, usage) => usageSum + convertWashAmount(usage.usedAmount ?? 0, usage.usedUnit), 0);
+    return sum + recordUsed;
+  }, 0);
+  const remainingBase = Math.max(purchased - used, 0);
+  const displayUnit = unit === "L" || unit === "kg" ? unit : unit;
+  const divisor = unit === "L" || unit === "kg" ? 1000 : 1;
+
+  return {
+    unit: displayUnit,
+    purchased: purchased / divisor,
+    used: used / divisor,
+    remaining: remainingBase / divisor,
+  };
 }
 
 function Records({ fuelRecords, washRecords }: { fuelRecords: FuelRecord[]; washRecords: WashRecord[] }) {
@@ -2378,15 +2727,19 @@ function WashRecordsPanel({
   deletedWashRecords = [],
   limit,
   onDelete,
+  onCreateProduct,
   onRestore,
   onUpdate,
+  washProducts = [],
   washRecords,
 }: {
   deletedWashRecords?: WashRecord[];
   limit: number;
   onDelete?: (recordId: string) => void;
+  onCreateProduct?: (product: Omit<WashProduct, "id" | "userId">) => WashProduct | undefined;
   onRestore?: (recordId: string) => void;
   onUpdate?: (recordId: string, record: Omit<WashRecord, "id" | "userId">) => void;
+  washProducts?: WashProduct[];
   washRecords: WashRecord[];
 }) {
   const [editingId, setEditingId] = useState("");
@@ -2441,12 +2794,14 @@ function WashRecordsPanel({
             <li key={record.id}>
               {editingId === record.id && onUpdate && !isDeletedView ? (
                 <WashRecordEditor
+                  onCreateProduct={onCreateProduct}
                   record={record}
                   onCancel={() => setEditingId("")}
                   onSave={(nextRecord) => {
                     onUpdate(record.id, nextRecord);
                     setEditingId("");
                   }}
+                  washProducts={washProducts}
                 />
               ) : (
                 <div className="record-row-header">
@@ -2487,11 +2842,15 @@ function WashRecordsPanel({
 function WashRecordEditor({
   record,
   onCancel,
+  onCreateProduct,
   onSave,
+  washProducts,
 }: {
   record: WashRecord;
   onCancel: () => void;
+  onCreateProduct?: (product: Omit<WashProduct, "id" | "userId">) => WashProduct | undefined;
   onSave: (record: Omit<WashRecord, "id" | "userId">) => void;
+  washProducts?: WashProduct[];
 }) {
   const [draft, setDraft] = useState<WashRecordDraft>(() => createWashDraft(record));
 
@@ -2507,7 +2866,12 @@ function WashRecordEditor({
         <strong>编辑洗车记录</strong>
         <span>{record.date}</span>
       </div>
-      <WashRecordFields draft={draft} onChange={setDraft} />
+      <WashRecordFields
+        draft={draft}
+        onChange={setDraft}
+        onCreateProduct={onCreateProduct ?? (() => undefined)}
+        washProducts={washProducts ?? []}
+      />
       <div className="form-actions">
         <button className="primary-button" type="submit">
           保存 · {money(resolveWashCost(draft))}

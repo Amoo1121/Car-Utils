@@ -98,6 +98,7 @@ export type WashType =
 
 export type WashProductUsage = {
   id?: string;
+  productId?: string;
   name: string;
   category?: string;
   step?: string;
@@ -110,6 +111,25 @@ export type WashProductUsage = {
   dilutionRatio?: string;
   estimatedCost?: number;
   cost?: number;
+  note?: string;
+};
+
+export type WashProductPurchase = {
+  id: string;
+  date: string;
+  purchasePrice: number;
+  capacity: number;
+  capacityUnit: "ml" | "L" | "g" | "kg" | "pcs";
+  note?: string;
+};
+
+export type WashProduct = BaseEntity & {
+  type?: "washProduct";
+  userId: string;
+  name: string;
+  brand?: string;
+  category: string;
+  purchases: WashProductPurchase[];
   note?: string;
 };
 
@@ -196,6 +216,7 @@ export type Store = {
   vehicles: Vehicle[];
   fuelRecords: FuelRecord[];
   washRecords: WashRecord[];
+  washProducts: WashProduct[];
   expenseRecords: ExpenseRecord[];
   currentUserId?: string;
   deviceId?: string;
@@ -210,6 +231,7 @@ export type StoreCounts = {
   vehicles: number;
   fuelRecords: number;
   washRecords: number;
+  washProducts: number;
   expenseRecords: number;
 };
 
@@ -268,6 +290,7 @@ export const emptyStore: Store = {
   vehicles: [],
   fuelRecords: [],
   washRecords: [],
+  washProducts: [],
   expenseRecords: [],
   schemaVersion: DATA_SCHEMA_VERSION,
   syncState: {
@@ -300,6 +323,9 @@ export function migrateData(raw: unknown): Store {
   const washRecords = Array.isArray(store.washRecords)
     ? store.washRecords.map((record) => migrateWashRecord(record, deviceId, migratedAt, userConsolidation.idMap))
     : [];
+  const washProducts = Array.isArray(store.washProducts)
+    ? store.washProducts.map((product) => migrateWashProduct(product, deviceId, migratedAt, userConsolidation.idMap))
+    : [];
   const expenseRecords = Array.isArray(store.expenseRecords)
     ? store.expenseRecords.map((record) => migrateExpenseRecord(record, deviceId, migratedAt, userConsolidation.idMap))
     : [];
@@ -315,6 +341,7 @@ export function migrateData(raw: unknown): Store {
     vehicles,
     fuelRecords,
     washRecords,
+    washProducts,
     expenseRecords,
     currentUserId,
     deviceId,
@@ -360,6 +387,7 @@ export function countStoreItems(store: Store): StoreCounts {
     vehicles: store.vehicles.length,
     fuelRecords: store.fuelRecords.length,
     washRecords: store.washRecords.length,
+    washProducts: store.washProducts.length,
     expenseRecords: store.expenseRecords.length,
   };
 }
@@ -375,6 +403,7 @@ export function mergeStores(localStore: Store, incomingStore: Store): Store {
     vehicles: mergeEntities(local.vehicles, incoming.vehicles),
     fuelRecords: mergeEntities(local.fuelRecords, incoming.fuelRecords),
     washRecords: mergeEntities(local.washRecords, incoming.washRecords),
+    washProducts: mergeEntities(local.washProducts, incoming.washProducts),
     expenseRecords: mergeEntities(local.expenseRecords, incoming.expenseRecords),
     currentUserId: currentUserId && users.some((user) => user.id === currentUserId) ? currentUserId : users[0]?.id,
     deviceId: local.deviceId ?? incoming.deviceId ?? getOrCreateDeviceId(),
@@ -571,6 +600,27 @@ function migrateWashRecord(value: WashRecord, deviceId: string, fallbackTime: nu
     cost: normalizeNumber(value.cost, 0),
     notes: value.notes || "",
     washType: value.washType ?? "diy",
+    ...migrateEntityMetadata(value, deviceId, fallbackTime),
+  };
+}
+
+function migrateWashProduct(value: WashProduct, deviceId: string, fallbackTime: number, userIdMap = new Map<string, string>()): WashProduct {
+  return {
+    ...value,
+    type: "washProduct",
+    userId: userIdMap.get(value.userId) ?? value.userId,
+    name: value.name || "未命名耗材",
+    category: value.category || "其他",
+    purchases: Array.isArray(value.purchases)
+      ? value.purchases.map((purchase) => ({
+          id: purchase.id || makeFallbackId("wash_purchase"),
+          date: purchase.date || today(),
+          purchasePrice: normalizeNumber(purchase.purchasePrice, 0),
+          capacity: normalizeNumber(purchase.capacity, 0),
+          capacityUnit: purchase.capacityUnit || "ml",
+          note: purchase.note,
+        }))
+      : [],
     ...migrateEntityMetadata(value, deviceId, fallbackTime),
   };
 }
