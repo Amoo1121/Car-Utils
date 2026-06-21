@@ -274,25 +274,28 @@ export function migrateData(raw: unknown): Store {
   const users = Array.isArray(store.users)
     ? store.users.map((user) => migrateUser(user, deviceId, migratedAt))
     : [];
+  const userConsolidation = consolidateUsers(users);
   const vehicles = Array.isArray(store.vehicles)
-    ? store.vehicles.map((vehicle) => migrateVehicle(vehicle, deviceId, migratedAt))
+    ? store.vehicles.map((vehicle) => migrateVehicle(vehicle, deviceId, migratedAt, userConsolidation.idMap))
     : [];
   const fuelRecords = Array.isArray(store.fuelRecords)
-    ? store.fuelRecords.map((record) => migrateFuelRecord(record, deviceId, migratedAt))
+    ? store.fuelRecords.map((record) => migrateFuelRecord(record, deviceId, migratedAt, userConsolidation.idMap))
     : [];
   const washRecords = Array.isArray(store.washRecords)
-    ? store.washRecords.map((record) => migrateWashRecord(record, deviceId, migratedAt))
+    ? store.washRecords.map((record) => migrateWashRecord(record, deviceId, migratedAt, userConsolidation.idMap))
     : [];
   const expenseRecords = Array.isArray(store.expenseRecords)
-    ? store.expenseRecords.map((record) => migrateExpenseRecord(record, deviceId, migratedAt))
+    ? store.expenseRecords.map((record) => migrateExpenseRecord(record, deviceId, migratedAt, userConsolidation.idMap))
     : [];
+  const mappedCurrentUserId =
+    typeof store.currentUserId === "string" ? userConsolidation.idMap.get(store.currentUserId) ?? store.currentUserId : undefined;
   const currentUserId =
-    typeof store.currentUserId === "string" && users.some((user) => user.id === store.currentUserId)
-      ? store.currentUserId
-      : users[0]?.id;
+    mappedCurrentUserId && userConsolidation.users.some((user) => user.id === mappedCurrentUserId)
+      ? mappedCurrentUserId
+      : undefined;
 
   return {
-    users,
+    users: userConsolidation.users,
     vehicles,
     fuelRecords,
     washRecords,
@@ -387,6 +390,10 @@ export function withUpdatedTimestamp<T extends object>(entity: T, timestamp = Da
     deviceId: getOrCreateDeviceId(),
     schemaVersion: DATA_SCHEMA_VERSION,
   };
+}
+
+export function normalizeEmail(value: string | undefined) {
+  return value?.trim().toLowerCase() ?? "";
 }
 
 export function isDeleted(entity: BaseEntity) {
@@ -486,11 +493,13 @@ function createEmptyStore(): Store {
 }
 
 function migrateUser(value: User, deviceId: string, fallbackTime: number): User {
+  const email = normalizeEmail(value.email);
+
   return {
     ...value,
     type: "user",
-    name: value.name || value.email?.split("@")[0] || "车主",
-    email: value.email || "",
+    name: value.name?.trim() || email.split("@")[0] || "车主",
+    email,
     settings: value.settings ?? {
       distanceUnit: "km",
       currency: "CNY",
@@ -500,10 +509,11 @@ function migrateUser(value: User, deviceId: string, fallbackTime: number): User 
   };
 }
 
-function migrateVehicle(value: Vehicle, deviceId: string, fallbackTime: number): Vehicle {
+function migrateVehicle(value: Vehicle, deviceId: string, fallbackTime: number, userIdMap = new Map<string, string>()): Vehicle {
   return {
     ...value,
     type: "vehicle",
+    userId: userIdMap.get(value.userId) ?? value.userId,
     nickname: value.nickname || value.model || "未命名车辆",
     brand: value.brand || "",
     model: value.model || "",
@@ -514,13 +524,14 @@ function migrateVehicle(value: Vehicle, deviceId: string, fallbackTime: number):
   };
 }
 
-function migrateFuelRecord(value: FuelRecord, deviceId: string, fallbackTime: number): FuelRecord {
+function migrateFuelRecord(value: FuelRecord, deviceId: string, fallbackTime: number, userIdMap = new Map<string, string>()): FuelRecord {
   const volume = normalizeNumber(value.volume, 0);
   const pricePerUnit = normalizeNumber(value.pricePerUnit, 0);
 
   return {
     ...value,
     type: "fuel",
+    userId: userIdMap.get(value.userId) ?? value.userId,
     date: value.date || today(),
     volume,
     pricePerUnit,
@@ -532,10 +543,11 @@ function migrateFuelRecord(value: FuelRecord, deviceId: string, fallbackTime: nu
   };
 }
 
-function migrateWashRecord(value: WashRecord, deviceId: string, fallbackTime: number): WashRecord {
+function migrateWashRecord(value: WashRecord, deviceId: string, fallbackTime: number, userIdMap = new Map<string, string>()): WashRecord {
   return {
     ...value,
     type: "wash",
+    userId: userIdMap.get(value.userId) ?? value.userId,
     date: value.date || today(),
     odometer: normalizeNumber(value.odometer, 0),
     items: Array.isArray(value.items) ? value.items : [],
@@ -547,15 +559,76 @@ function migrateWashRecord(value: WashRecord, deviceId: string, fallbackTime: nu
   };
 }
 
-function migrateExpenseRecord(value: ExpenseRecord, deviceId: string, fallbackTime: number): ExpenseRecord {
+function migrateExpenseRecord(value: ExpenseRecord, deviceId: string, fallbackTime: number, userIdMap = new Map<string, string>()): ExpenseRecord {
   return {
     ...value,
     type: "expense",
+    userId: userIdMap.get(value.userId) ?? value.userId,
     date: value.date || today(),
     category: value.category || "other",
     title: value.title || "车辆费用",
     amount: normalizeNumber(value.amount, 0),
     ...migrateEntityMetadata(value, deviceId, fallbackTime),
+  };
+}
+
+function consolidateUsers(users: User[]) {
+  const usersByEmail = new Map<string, User>();
+  const idMap = new Map<string, string>();
+  const anonymousUsers: User[] = [];
+
+  users.forEach((user) => {
+    const email = normalizeEmail(user.email);
+    if (!email) {
+      anonymousUsers.push(user);
+      idMap.set(user.id, user.id);
+      return;
+    }
+
+    const existing = usersByEmail.get(email);
+    if (!existing) {
+      usersByEmail.set(email, { ...user, email });
+      idMap.set(user.id, user.id);
+      return;
+    }
+
+    const canonical = pickCanonicalUser(existing, user);
+    const duplicate = canonical.id === existing.id ? user : existing;
+    const merged = mergeUser(canonical, duplicate);
+
+    usersByEmail.set(email, merged);
+    idMap.set(existing.id, merged.id);
+    idMap.set(user.id, merged.id);
+  });
+
+  return {
+    users: [...usersByEmail.values(), ...anonymousUsers],
+    idMap,
+  };
+}
+
+function pickCanonicalUser(first: User, second: User) {
+  const firstCreatedAt = first.createdAt ?? Number.MAX_SAFE_INTEGER;
+  const secondCreatedAt = second.createdAt ?? Number.MAX_SAFE_INTEGER;
+  return firstCreatedAt <= secondCreatedAt ? first : second;
+}
+
+function mergeUser(canonical: User, duplicate: User): User {
+  const newer = getEntityTime(duplicate) > getEntityTime(canonical) ? duplicate : canonical;
+
+  return {
+    ...canonical,
+    name: newer.name?.trim() || canonical.name,
+    email: normalizeEmail(canonical.email || duplicate.email),
+    openId: canonical.openId ?? duplicate.openId,
+    unionId: canonical.unionId ?? duplicate.unionId,
+    avatarUrl: newer.avatarUrl ?? canonical.avatarUrl,
+    settings: newer.settings ?? canonical.settings,
+    updatedAt: Math.max(canonical.updatedAt ?? 0, duplicate.updatedAt ?? 0),
+    deletedAt: canonical.deletedAt ?? duplicate.deletedAt ?? null,
+    deviceId: newer.deviceId ?? canonical.deviceId,
+    source: newer.source ?? canonical.source,
+    schemaVersion: DATA_SCHEMA_VERSION,
   };
 }
 

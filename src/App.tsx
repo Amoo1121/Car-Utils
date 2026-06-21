@@ -27,6 +27,7 @@ import {
   matchesFuelQuery,
   mergeStores,
   normalizeStore,
+  normalizeEmail,
   paidUnitPrice,
   parseStoreBackup,
   recordCost,
@@ -93,8 +94,9 @@ export function App() {
   }
 
   function login(name: string, email: string) {
-    const trimmedEmail = email.trim().toLowerCase();
-    const existingUser = store.users.find((user) => user.email === trimmedEmail);
+    const trimmedEmail = normalizeEmail(email);
+    const normalizedStore = normalizeStore(store);
+    const existingUser = normalizedStore.users.find((user) => normalizeEmail(user.email) === trimmedEmail);
     const user =
       existingUser ??
       withCreatedTimestamps({
@@ -103,8 +105,8 @@ export function App() {
         email: trimmedEmail,
       } satisfies User);
 
-    const users = existingUser ? store.users : [...store.users, user];
-    commit({ ...store, users, currentUserId: user.id });
+    const users = existingUser ? normalizedStore.users : [...normalizedStore.users, user];
+    commit({ ...normalizedStore, users, currentUserId: user.id });
   }
 
   function logout() {
