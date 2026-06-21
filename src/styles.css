@@ -1,0 +1,373 @@
+:root {
+  color: #17201b;
+  background: #f5f7f3;
+  font-family:
+    Inter, "SF Pro Display", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.login-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(rgba(20, 29, 24, 0.35), rgba(20, 29, 24, 0.52)),
+    url("https://images.unsplash.com/photo-1502877338535-766e1452684a?auto=format&fit=crop&w=1800&q=80")
+      center / cover;
+}
+
+.login-panel {
+  width: min(440px, 100%);
+  padding: 28px;
+  border-radius: 8px;
+  color: #ffffff;
+  background: rgba(23, 32, 27, 0.82);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(14px);
+}
+
+.login-panel h1 {
+  margin: 8px 0 24px;
+  font-size: clamp(32px, 7vw, 48px);
+  line-height: 1.04;
+}
+
+.brand-mark {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: #15201b;
+  background: #c8f26d;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.topbar {
+  max-width: 1440px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: #667166;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid #dfe6da;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.icon-button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: #4c594e;
+  background: #eef2ea;
+}
+
+.workspace {
+  max-width: 1440px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) 1fr;
+  gap: 20px;
+}
+
+.sidebar,
+.content {
+  min-width: 0;
+}
+
+.vehicle-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.vehicle-card {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  text-align: left;
+  border: 1px solid #dfe6da;
+  border-radius: 8px;
+  color: #17201b;
+  background: #ffffff;
+}
+
+.vehicle-card span,
+.vehicle-card small,
+.muted,
+.record-list span,
+.empty {
+  color: #667166;
+}
+
+.vehicle-card.active {
+  border-color: #86a841;
+  background: #f3fbdf;
+}
+
+.hero-band {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) 1.2fr;
+  gap: 18px;
+  align-items: stretch;
+  padding: 24px;
+  border-radius: 8px;
+  color: #ffffff;
+  background:
+    linear-gradient(110deg, rgba(23, 32, 27, 0.94), rgba(23, 32, 27, 0.72)),
+    url("https://images.unsplash.com/photo-1493238792000-8113da705763?auto=format&fit=crop&w=1600&q=80")
+      center / cover;
+}
+
+.hero-band h2 {
+  margin: 0 0 8px;
+  font-size: clamp(30px, 5vw, 48px);
+  line-height: 1;
+}
+
+.hero-band h2 span {
+  display: block;
+  margin-top: 8px;
+  color: #c8f26d;
+  font-size: 18px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stat-card {
+  min-height: 118px;
+  display: grid;
+  align-content: space-between;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.stat-card span {
+  color: #c8f26d;
+}
+
+.stat-card small {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.stat-card strong {
+  font-size: 20px;
+}
+
+.forms-grid,
+.records-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.panel {
+  padding: 16px;
+  border: 1px solid #dfe6da;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-weight: 800;
+}
+
+.stack {
+  display: grid;
+  gap: 12px;
+}
+
+.two-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  color: #4b564e;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid #d7dfd1;
+  border-radius: 8px;
+  color: #17201b;
+  background: #fbfcfa;
+  outline: none;
+}
+
+input:focus,
+select:focus {
+  border-color: #86a841;
+  box-shadow: 0 0 0 3px rgba(134, 168, 65, 0.18);
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.check-row input {
+  width: 18px;
+  min-height: 18px;
+}
+
+.primary-button,
+.secondary-button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.primary-button {
+  color: #15201b;
+  background: #c8f26d;
+}
+
+.secondary-button {
+  color: #ffffff;
+  background: #25332a;
+}
+
+.record-list {
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+
+.record-list li {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f6f8f4;
+}
+
+.blank-state {
+  min-height: 520px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 32px;
+  text-align: center;
+  border: 1px dashed #cfd9c8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.blank-state h2 {
+  margin: 0;
+}
+
+.blank-state p {
+  max-width: 420px;
+  margin: 0;
+  color: #667166;
+}
+
+@media (max-width: 1080px) {
+  .workspace,
+  .hero-band {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    padding: 16px;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .forms-grid,
+  .records-grid,
+  .two-cols,
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
