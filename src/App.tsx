@@ -37,7 +37,7 @@ type FuelRecord = {
   userId: string;
   vehicleId: string;
   date: string;
-  odometer: number;
+  odometer?: number;
   volume: number;
   pricePerUnit: number;
   fuelGrade?: string;
@@ -446,10 +446,12 @@ function Dashboard({
     const fuelCost = fuelRecords.reduce((sum, record) => sum + (record.paidAmount ?? record.totalCost), 0);
     const fuelVolume = fuelRecords.reduce((sum, record) => sum + record.volume, 0);
     const washCost = washRecords.reduce((sum, record) => sum + record.cost, 0);
-    const sortedFuel = [...fuelRecords].sort((a, b) => a.odometer - b.odometer);
+    const recordsWithOdometer = fuelRecords.filter((record) => typeof record.odometer === "number");
+    const consumptionVolume = recordsWithOdometer.reduce((sum, record) => sum + record.volume, 0);
+    const sortedFuel = [...recordsWithOdometer].sort((a, b) => a.odometer! - b.odometer!);
     const distance =
-      sortedFuel.length >= 2 ? sortedFuel[sortedFuel.length - 1].odometer - sortedFuel[0].odometer : 0;
-    const avgConsumption = distance > 0 ? (fuelVolume / distance) * 100 : 0;
+      sortedFuel.length >= 2 ? sortedFuel[sortedFuel.length - 1].odometer! - sortedFuel[0].odometer! : 0;
+    const avgConsumption = distance > 0 ? (consumptionVolume / distance) * 100 : 0;
 
     return { fuelCost, fuelVolume, washCost, distance, avgConsumption };
   }, [fuelRecords, washRecords]);
@@ -516,11 +518,11 @@ function FuelForm({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (!form.odometer || !form.volume || !form.pricePerUnit) return;
+    if (!form.volume || !form.pricePerUnit) return;
     onAdd({
       vehicleId: vehicle.id,
       date: form.date,
-      odometer: Number(form.odometer),
+      odometer: form.odometer ? Number(form.odometer) : undefined,
       volume: Number(form.volume),
       pricePerUnit: Number(form.pricePerUnit),
       fuelGrade: selectedFuelGrade,
@@ -562,15 +564,16 @@ function FuelForm({
             加油时总里程 km
             <span className="info-tip" tabIndex={0} aria-label="加油时总里程说明">
               <Info size={14} />
-              <span className="tooltip">填写加油当下仪表盘显示的车辆总里程，用来计算两次加油之间的行驶距离。</span>
+              <span className="tooltip">选填。填写加油当下仪表盘显示的车辆总里程；补历史数据忘记了可以留空，油耗统计会跳过缺里程的记录。</span>
             </span>
           </span>
           <input
-            required
             type="number"
             min="0"
+            step="0.1"
             value={form.odometer}
             onChange={(event) => setForm({ ...form, odometer: event.target.value })}
+            placeholder="可选"
           />
         </label>
       </div>
@@ -789,7 +792,7 @@ function Records({ fuelRecords, washRecords }: { fuelRecords: FuelRecord[]; wash
             title: `${record.fuelGrade ? `${record.fuelGrade} · ` : ""}${record.volume} L · ${money(record.paidAmount ?? record.totalCost)}`,
             meta: [
               record.date,
-              `${record.odometer} km`,
+              record.odometer != null ? `${record.odometer} km` : "",
               record.station,
               record.fuelLevelBefore != null || record.fuelLevelAfter != null
                 ? `油位 ${record.fuelLevelBefore ?? "-"}% -> ${record.fuelLevelAfter ?? "-"}%`
