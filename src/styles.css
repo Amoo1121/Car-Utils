@@ -265,6 +265,139 @@ button {
   gap: 18px;
 }
 
+.sync-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  color: #ffffff;
+  background:
+    linear-gradient(110deg, rgba(23, 32, 27, 0.96), rgba(37, 51, 42, 0.82)),
+    url("https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1600&q=80")
+      center / cover;
+}
+
+.sync-hero h2 {
+  margin: 0 0 8px;
+  font-size: clamp(26px, 4vw, 38px);
+  line-height: 1.08;
+}
+
+.sync-hero p:not(.eyebrow) {
+  max-width: 680px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.76);
+  line-height: 1.6;
+}
+
+.sync-badge {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  color: #15201b;
+  background: #c8f26d;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.sync-grid {
+  display: grid;
+  grid-template-columns: minmax(340px, 0.9fr) minmax(360px, 1.1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.sync-card {
+  display: grid;
+  gap: 14px;
+}
+
+.data-count-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.data-count {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f6f8f4;
+}
+
+.data-count strong {
+  color: #17201b;
+  font-size: 24px;
+}
+
+.data-count span,
+.sync-note,
+.sync-roadmap span {
+  color: #667166;
+}
+
+.sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.icon-text-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.file-button {
+  cursor: pointer;
+}
+
+.file-button input {
+  display: none;
+}
+
+.sync-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.status-banner {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #4b564e;
+  background: #f6f8f4;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.status-banner.success {
+  color: #2b4a12;
+  background: #edf8d5;
+}
+
+.status-banner.error {
+  color: #8b2f23;
+  background: #fff0ed;
+}
+
+.sync-roadmap {
+  display: grid;
+  gap: 10px;
+}
+
+.sync-roadmap div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f6f8f4;
+}
+
 .fuel-insights {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
@@ -771,9 +904,17 @@ select:focus {
   color: #667166;
 }
 
+.blank-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
 @media (max-width: 1080px) {
   .workspace,
   .hero-band,
+  .sync-grid,
   .fuel-insights,
   .fuel-filter-panel,
   .filter-controls {
@@ -799,9 +940,14 @@ select:focus {
   .records-grid,
   .tab-layout,
   .chart-grid,
+  .data-count-grid,
   .two-cols,
   .stats-grid {
     grid-template-columns: 1fr;
+  }
+
+  .sync-hero {
+    display: grid;
   }
 
   .station-performance-row {

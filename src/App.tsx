@@ -1,109 +1,50 @@
 import {
   Car,
+  Cloud,
+  Database,
+  Download,
   Droplets,
   Fuel,
   Info,
   LogOut,
   Plus,
   Sparkles,
+  Upload,
   UserRound,
   Wrench,
 } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import {
+  DATA_SCHEMA_VERSION,
+  STORAGE_KEY,
+  compactDate,
+  countStoreItems,
+  createStoreBackup,
+  emptyStore,
+  fuelGrades,
+  matchesFuelDateFilter,
+  matchesFuelQuery,
+  mergeStores,
+  normalizeStore,
+  paidUnitPrice,
+  parseStoreBackup,
+  recordCost,
+  stationName,
+  today,
+  vehiclePresets,
+  withCreatedTimestamps,
+  withUpdatedTimestamp,
+  type EnergyType,
+  type FuelDateFilter,
+  type FuelRecord,
+  type Store,
+  type StoreCounts,
+  type User,
+  type Vehicle,
+  type WashRecord,
+} from "./shared/carData";
 
-type EnergyType = "汽油" | "柴油" | "混动" | "纯电" | "增程";
-
-type User = {
-  id: string;
-  name: string;
-  email: string;
-};
-
-type Vehicle = {
-  id: string;
-  userId: string;
-  nickname: string;
-  brand: string;
-  model: string;
-  year: string;
-  plate: string;
-  energyType: EnergyType;
-  tankSize?: number;
-  batterySize?: number;
-};
-
-type FuelRecord = {
-  id: string;
-  userId: string;
-  vehicleId: string;
-  date: string;
-  odometer?: number;
-  volume: number;
-  pricePerUnit: number;
-  fuelGrade?: string;
-  paidAmount?: number;
-  fuelLevelBefore?: number;
-  fuelLevelAfter?: number;
-  totalCost: number;
-  station: string;
-  fullTank: boolean;
-};
-
-type WashRecord = {
-  id: string;
-  userId: string;
-  vehicleId: string;
-  date: string;
-  odometer: number;
-  items: string[];
-  minutes: number;
-  cost: number;
-  notes: string;
-};
-
-type Store = {
-  users: User[];
-  vehicles: Vehicle[];
-  fuelRecords: FuelRecord[];
-  washRecords: WashRecord[];
-  currentUserId?: string;
-};
-
-type AppTab = "overview" | "fuel" | "wash" | "vehicles";
-type FuelDateFilter = "all" | "month" | "year";
-
-const STORAGE_KEY = "car-utils-store-v1";
-
-const vehiclePresets = [
-  { brand: "Toyota", model: "Camry", energyType: "汽油" as EnergyType, tankSize: 60 },
-  { brand: "Honda", model: "CR-V", energyType: "混动" as EnergyType, tankSize: 57 },
-  { brand: "Tesla", model: "Model 3", energyType: "纯电" as EnergyType, batterySize: 60 },
-  { brand: "BYD", model: "秦 PLUS DM-i", energyType: "混动" as EnergyType, tankSize: 48 },
-  { brand: "Li Auto", model: "L7", energyType: "增程" as EnergyType, tankSize: 65, batterySize: 42 },
-];
-
-const fuelGrades = ["92#", "95#", "98#", "爱跑98", "0#柴油", "其他"];
-
-const emptyStore: Store = {
-  users: [],
-  vehicles: [],
-  fuelRecords: [],
-  washRecords: [],
-};
-
-function normalizeStore(value: unknown): Store {
-  if (!value || typeof value !== "object") return emptyStore;
-
-  const store = value as Partial<Store>;
-
-  return {
-    users: Array.isArray(store.users) ? store.users : [],
-    vehicles: Array.isArray(store.vehicles) ? store.vehicles : [],
-    fuelRecords: Array.isArray(store.fuelRecords) ? store.fuelRecords : [],
-    washRecords: Array.isArray(store.washRecords) ? store.washRecords : [],
-    currentUserId: typeof store.currentUserId === "string" ? store.currentUserId : undefined,
-  };
-}
+type AppTab = "overview" | "fuel" | "wash" | "vehicles" | "sync";
 
 function loadStore(): Store {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -119,10 +60,6 @@ function loadStore(): Store {
 
 function saveStore(store: Store) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-}
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
 }
 
 function makeId(prefix: string) {
@@ -141,67 +78,6 @@ function number(value: number, digits = 1) {
   return Number.isFinite(value) ? value.toFixed(digits) : "-";
 }
 
-function recordCost(record: FuelRecord) {
-  return record.paidAmount ?? record.totalCost;
-}
-
-function paidUnitPrice(record: FuelRecord) {
-  if (record.volume <= 0) return record.pricePerUnit;
-  return recordCost(record) / record.volume;
-}
-
-function compactDate(date: string) {
-  const [, month, day] = date.split("-");
-  return month && day ? `${Number(month)}/${Number(day)}` : date;
-}
-
-function stationName(record: FuelRecord) {
-  return record.station.trim() || "未记录加油站";
-}
-
-function fuzzyMatch(text: string, query: string) {
-  const normalizedText = text.toLowerCase();
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) return true;
-  if (normalizedText.includes(normalizedQuery)) return true;
-
-  let cursor = 0;
-  for (const char of normalizedQuery) {
-    cursor = normalizedText.indexOf(char, cursor);
-    if (cursor === -1) return false;
-    cursor += 1;
-  }
-
-  return true;
-}
-
-function matchesFuelDateFilter(record: FuelRecord, dateFilter: FuelDateFilter) {
-  const now = new Date();
-  const year = String(now.getFullYear());
-  const month = `${year}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-
-  if (dateFilter === "month") return record.date.startsWith(month);
-  if (dateFilter === "year") return record.date.startsWith(year);
-  return true;
-}
-
-function matchesFuelQuery(record: FuelRecord, query: string) {
-  const haystack = [
-    record.station,
-    record.fuelGrade,
-    record.date,
-    record.odometer,
-    record.volume,
-    record.pricePerUnit,
-    record.paidAmount,
-    record.totalCost,
-  ]
-    .filter((value) => value != null)
-    .join(" ");
-
-  return fuzzyMatch(haystack, query);
-}
-
 export function App() {
   const [store, setStore] = useState<Store>(() => loadStore());
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
@@ -218,7 +94,7 @@ export function App() {
     const existingUser = store.users.find((user) => user.email === trimmedEmail);
     const user =
       existingUser ??
-      ({
+      withCreatedTimestamps({
         id: makeId("user"),
         name: name.trim() || trimmedEmail.split("@")[0] || "车主",
         email: trimmedEmail,
@@ -235,7 +111,7 @@ export function App() {
 
   function addVehicle(vehicle: Omit<Vehicle, "id" | "userId">) {
     if (!currentUser) return;
-    const nextVehicle = { ...vehicle, id: makeId("vehicle"), userId: currentUser.id };
+    const nextVehicle = withCreatedTimestamps({ ...vehicle, id: makeId("vehicle"), userId: currentUser.id });
     commit({ ...store, vehicles: [...store.vehicles, nextVehicle] });
     setSelectedVehicleId(nextVehicle.id);
     setActiveTab("overview");
@@ -245,7 +121,10 @@ export function App() {
     if (!currentUser) return;
     commit({
       ...store,
-      fuelRecords: [...store.fuelRecords, { ...record, id: makeId("fuel"), userId: currentUser.id }],
+      fuelRecords: [
+        ...store.fuelRecords,
+        withCreatedTimestamps({ ...record, id: makeId("fuel"), userId: currentUser.id }),
+      ],
     });
   }
 
@@ -255,7 +134,12 @@ export function App() {
       ...store,
       fuelRecords: store.fuelRecords.map((currentRecord) =>
         currentRecord.id === recordId && currentRecord.userId === currentUser.id
-          ? { ...record, id: currentRecord.id, userId: currentRecord.userId }
+          ? withUpdatedTimestamp({
+              ...record,
+              id: currentRecord.id,
+              userId: currentRecord.userId,
+              createdAt: currentRecord.createdAt,
+            })
           : currentRecord,
       ),
     });
@@ -265,8 +149,20 @@ export function App() {
     if (!currentUser) return;
     commit({
       ...store,
-      washRecords: [...store.washRecords, { ...record, id: makeId("wash"), userId: currentUser.id }],
+      washRecords: [
+        ...store.washRecords,
+        withCreatedTimestamps({ ...record, id: makeId("wash"), userId: currentUser.id }),
+      ],
     });
+  }
+
+  function importStore(importedStore: Store) {
+    const next = mergeStores(store, importedStore);
+    commit(next);
+    if (selectedVehicleId && !next.vehicles.some((vehicle) => vehicle.id === selectedVehicleId)) {
+      setSelectedVehicleId("");
+    }
+    return countStoreItems(next);
   }
 
   if (!currentUser) {
@@ -327,7 +223,7 @@ export function App() {
         </aside>
 
         <div className="content">
-          {activeVehicle || activeTab === "vehicles" ? (
+          {activeVehicle || activeTab === "vehicles" || activeTab === "sync" ? (
             <>
               <TabBar activeTab={activeTab} onChange={setActiveTab} />
               {activeTab === "overview" && activeVehicle && (
@@ -356,15 +252,21 @@ export function App() {
                   <VehicleSummary vehicles={userVehicles} activeVehicleId={activeVehicleId} onSelect={setSelectedVehicleId} />
                 </section>
               )}
+              {activeTab === "sync" && <DataSyncPanel store={store} onImport={importStore} />}
             </>
           ) : (
             <div className="blank-state">
               <Wrench size={42} />
               <h2>先绑定你的第一台车</h2>
               <p>添加品牌、型号、能源类型和车牌后，加油和洗车数据都会按车辆独立统计。</p>
-              <button className="primary-button" type="button" onClick={() => setActiveTab("vehicles")}>
-                添加车辆
-              </button>
+              <div className="blank-actions">
+                <button className="primary-button" type="button" onClick={() => setActiveTab("vehicles")}>
+                  添加车辆
+                </button>
+                <button className="ghost-button" type="button" onClick={() => setActiveTab("sync")}>
+                  导入已有数据
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -379,6 +281,7 @@ function TabBar({ activeTab, onChange }: { activeTab: AppTab; onChange: (tab: Ap
     { id: "fuel", label: "加油", icon: <Fuel size={16} /> },
     { id: "wash", label: "洗车", icon: <Sparkles size={16} /> },
     { id: "vehicles", label: "车辆", icon: <Wrench size={16} /> },
+    { id: "sync", label: "同步", icon: <Cloud size={16} /> },
   ];
 
   return (
@@ -511,6 +414,144 @@ function FuelFilters({
       </div>
     </section>
   );
+}
+
+function DataSyncPanel({
+  store,
+  onImport,
+}: {
+  store: Store;
+  onImport: (store: Store) => StoreCounts;
+}) {
+  const counts = countStoreItems(store);
+  const [status, setStatus] = useState<{ type: "idle" | "success" | "error"; text: string }>({
+    type: "idle",
+    text: "云同步尚未连接。当前先用备份文件迁移已有数据，并为微信小程序同步保留同一份数据格式。",
+  });
+
+  function exportData() {
+    const backup = createStoreBackup(store);
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `car-utils-backup-${today()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setStatus({
+      type: "success",
+      text: `已生成 schema v${DATA_SCHEMA_VERSION} 备份：${formatCounts(counts)}。`,
+    });
+  }
+
+  async function importData(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    try {
+      const importedStore = parseStoreBackup(await file.text());
+      const incomingCounts = countStoreItems(importedStore);
+      const mergedCounts = onImport(importedStore);
+      setStatus({
+        type: "success",
+        text: `已导入 ${file.name}，读到 ${formatCounts(incomingCounts)}；合并后本机共有 ${formatCounts(mergedCounts)}。`,
+      });
+    } catch (error) {
+      setStatus({
+        type: "error",
+        text: error instanceof Error ? error.message : "导入失败，请确认文件是 Car Utils 的 JSON 备份。",
+      });
+    } finally {
+      input.value = "";
+    }
+  }
+
+  return (
+    <section className="tab-stack">
+      <section className="panel sync-hero">
+        <div>
+          <p className="eyebrow">Multi-device Sync</p>
+          <h2>先保护现有记录，再接微信小程序云同步</h2>
+          <p>
+            现在网页端已经使用带版本号的数据包。你可以先导出当前记录，小程序端后续会读取同一份结构，再把数据上传到云端。
+          </p>
+        </div>
+        <span className="sync-badge">Schema v{DATA_SCHEMA_VERSION}</span>
+      </section>
+
+      <div className="sync-grid">
+        <section className="panel sync-card">
+          <div className="section-title">
+            <Database size={17} />
+            <span>本机数据</span>
+          </div>
+          <div className="data-count-grid">
+            <DataCount label="账户" value={counts.users} />
+            <DataCount label="车辆" value={counts.vehicles} />
+            <DataCount label="加油" value={counts.fuelRecords} />
+            <DataCount label="洗车" value={counts.washRecords} />
+          </div>
+          <div className="sync-actions">
+            <button className="primary-button icon-text-button" type="button" onClick={exportData}>
+              <Download size={16} />
+              导出备份
+            </button>
+            <label className="secondary-button icon-text-button file-button">
+              <Upload size={16} />
+              导入并合并
+              <input type="file" accept="application/json,.json" onChange={importData} />
+            </label>
+          </div>
+          <p className="sync-note">
+            导入会按记录 ID 合并；如果同一条记录两边都改过，会优先保留更新时间更晚的一条。
+          </p>
+          <p className={`status-banner ${status.type}`} aria-live="polite">
+            {status.text}
+          </p>
+        </section>
+
+        <section className="panel sync-card">
+          <div className="section-title">
+            <Cloud size={17} />
+            <span>微信小程序同步路径</span>
+          </div>
+          <div className="sync-roadmap">
+            <div>
+              <strong>1. 数据迁移</strong>
+              <span>网页端导出 JSON，小程序首版支持导入并上传云端。</span>
+            </div>
+            <div>
+              <strong>2. 云端数据源</strong>
+              <span>接入微信云开发数据库，用用户 OpenID 隔离每个人的数据。</span>
+            </div>
+            <div>
+              <strong>3. 多端合并</strong>
+              <span>网页端和小程序端都保存更新时间，离线新增后再次打开时自动合并。</span>
+            </div>
+          </div>
+          <p className="sync-note">
+            真正开启云同步还需要微信小程序 AppID 和 CloudBase 环境 ID；拿到后可以把这里的导入/导出升级成自动同步。
+          </p>
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function DataCount({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="data-count">
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function formatCounts(counts: StoreCounts) {
+  return `${counts.users} 个账户、${counts.vehicles} 台车、${counts.fuelRecords} 条加油、${counts.washRecords} 条洗车`;
 }
 
 function LoginScreen({ onLogin }: { onLogin: (name: string, email: string) => void }) {
