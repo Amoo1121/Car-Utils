@@ -2,6 +2,7 @@ import {
   Car,
   Droplets,
   Fuel,
+  Info,
   LogOut,
   Plus,
   Sparkles,
@@ -39,6 +40,10 @@ type FuelRecord = {
   odometer: number;
   volume: number;
   pricePerUnit: number;
+  fuelGrade?: string;
+  paidAmount?: number;
+  fuelLevelBefore?: number;
+  fuelLevelAfter?: number;
   totalCost: number;
   station: string;
   fullTank: boolean;
@@ -73,6 +78,8 @@ const vehiclePresets = [
   { brand: "BYD", model: "秦 PLUS DM-i", energyType: "混动" as EnergyType, tankSize: 48 },
   { brand: "Li Auto", model: "L7", energyType: "增程" as EnergyType, tankSize: 65, batterySize: 42 },
 ];
+
+const fuelGrades = ["92#", "95#", "98#", "爱跑98", "0#柴油", "其他"];
 
 const emptyStore: Store = {
   users: [],
@@ -436,7 +443,7 @@ function Dashboard({
   washRecords: WashRecord[];
 }) {
   const stats = useMemo(() => {
-    const fuelCost = fuelRecords.reduce((sum, record) => sum + record.totalCost, 0);
+    const fuelCost = fuelRecords.reduce((sum, record) => sum + (record.paidAmount ?? record.totalCost), 0);
     const fuelVolume = fuelRecords.reduce((sum, record) => sum + record.volume, 0);
     const washCost = washRecords.reduce((sum, record) => sum + record.cost, 0);
     const sortedFuel = [...fuelRecords].sort((a, b) => a.odometer - b.odometer);
@@ -492,13 +499,20 @@ function FuelForm({
   const [form, setForm] = useState({
     date: today(),
     odometer: "",
+    fuelGrade: "95#",
+    customFuelGrade: "",
     volume: "",
     pricePerUnit: "",
+    paidAmount: "",
+    fuelLevelBefore: "",
+    fuelLevelAfter: "",
     station: "",
     fullTank: true,
   });
 
   const totalCost = Number(form.volume) * Number(form.pricePerUnit);
+  const paidAmount = form.paidAmount ? Number(form.paidAmount) : totalCost;
+  const selectedFuelGrade = form.fuelGrade === "其他" ? form.customFuelGrade.trim() || "其他" : form.fuelGrade;
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -509,11 +523,27 @@ function FuelForm({
       odometer: Number(form.odometer),
       volume: Number(form.volume),
       pricePerUnit: Number(form.pricePerUnit),
+      fuelGrade: selectedFuelGrade,
+      paidAmount,
+      fuelLevelBefore: form.fuelLevelBefore ? Number(form.fuelLevelBefore) : undefined,
+      fuelLevelAfter: form.fuelLevelAfter ? Number(form.fuelLevelAfter) : undefined,
       totalCost,
       station: form.station,
       fullTank: form.fullTank,
     });
-    setForm({ date: today(), odometer: "", volume: "", pricePerUnit: "", station: "", fullTank: true });
+    setForm({
+      date: today(),
+      odometer: "",
+      fuelGrade: form.fuelGrade,
+      customFuelGrade: form.customFuelGrade,
+      volume: "",
+      pricePerUnit: "",
+      paidAmount: "",
+      fuelLevelBefore: "",
+      fuelLevelAfter: "",
+      station: "",
+      fullTank: true,
+    });
   }
 
   return (
@@ -528,7 +558,13 @@ function FuelForm({
           <input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} />
         </label>
         <label>
-          里程 km
+          <span className="label-with-info">
+            加油时总里程 km
+            <span className="info-tip" tabIndex={0} aria-label="加油时总里程说明">
+              <Info size={14} />
+              <span className="tooltip">填写加油当下仪表盘显示的车辆总里程，用来计算两次加油之间的行驶距离。</span>
+            </span>
+          </span>
           <input
             required
             type="number"
@@ -537,6 +573,34 @@ function FuelForm({
             onChange={(event) => setForm({ ...form, odometer: event.target.value })}
           />
         </label>
+      </div>
+      <div className="two-cols">
+        <label>
+          油品
+          <select
+            value={form.fuelGrade}
+            onChange={(event) => setForm({ ...form, fuelGrade: event.target.value })}
+          >
+            {fuelGrades.map((grade) => (
+              <option key={grade}>{grade}</option>
+            ))}
+          </select>
+        </label>
+        {form.fuelGrade === "其他" ? (
+          <label>
+            自定义油品
+            <input
+              value={form.customFuelGrade}
+              onChange={(event) => setForm({ ...form, customFuelGrade: event.target.value })}
+              placeholder="例如 V-Power 98"
+            />
+          </label>
+        ) : (
+          <label>
+            加油站
+            <input value={form.station} onChange={(event) => setForm({ ...form, station: event.target.value })} />
+          </label>
+        )}
       </div>
       <div className="two-cols">
         <label>
@@ -551,7 +615,7 @@ function FuelForm({
           />
         </label>
         <label>
-          单价
+          表显单价
           <input
             required
             type="number"
@@ -562,9 +626,46 @@ function FuelForm({
           />
         </label>
       </div>
+      {form.fuelGrade === "其他" && (
+        <label>
+          加油站
+          <input value={form.station} onChange={(event) => setForm({ ...form, station: event.target.value })} />
+        </label>
+      )}
+      <div className="two-cols">
+        <label>
+          实付金额
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.paidAmount}
+            onChange={(event) => setForm({ ...form, paidAmount: event.target.value })}
+            placeholder={money(totalCost || 0)}
+          />
+        </label>
+        <label>
+          加油后油位 %
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={form.fuelLevelAfter}
+            onChange={(event) => setForm({ ...form, fuelLevelAfter: event.target.value })}
+            placeholder={form.fullTank ? "100" : "可选"}
+          />
+        </label>
+      </div>
       <label>
-        加油站
-        <input value={form.station} onChange={(event) => setForm({ ...form, station: event.target.value })} />
+        加油前油位 %
+        <input
+          type="number"
+          min="0"
+          max="100"
+          value={form.fuelLevelBefore}
+          onChange={(event) => setForm({ ...form, fuelLevelBefore: event.target.value })}
+          placeholder="例如 20"
+        />
       </label>
       <label className="check-row">
         <input
@@ -575,7 +676,7 @@ function FuelForm({
         加满
       </label>
       <button className="primary-button" type="submit">
-        保存加油记录 · {money(totalCost || 0)}
+        保存加油记录 · {money(paidAmount || 0)}
       </button>
     </form>
   );
@@ -685,8 +786,17 @@ function Records({ fuelRecords, washRecords }: { fuelRecords: FuelRecord[]; wash
           empty="暂无加油记录"
           rows={fuelRecords.slice(0, 6).map((record) => ({
             id: record.id,
-            title: `${record.volume} L · ${money(record.totalCost)}`,
-            meta: `${record.date} · ${record.odometer} km${record.station ? ` · ${record.station}` : ""}`,
+            title: `${record.fuelGrade ? `${record.fuelGrade} · ` : ""}${record.volume} L · ${money(record.paidAmount ?? record.totalCost)}`,
+            meta: [
+              record.date,
+              `${record.odometer} km`,
+              record.station,
+              record.fuelLevelBefore != null || record.fuelLevelAfter != null
+                ? `油位 ${record.fuelLevelBefore ?? "-"}% -> ${record.fuelLevelAfter ?? "-"}%`
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" · "),
           }))}
         />
       </div>
