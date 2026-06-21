@@ -69,6 +69,8 @@ type Store = {
   currentUserId?: string;
 };
 
+type AppTab = "overview" | "fuel" | "wash" | "vehicles";
+
 const STORAGE_KEY = "car-utils-store-v1";
 
 const vehiclePresets = [
@@ -141,6 +143,7 @@ function number(value: number, digits = 1) {
 export function App() {
   const [store, setStore] = useState<Store>(() => loadStore());
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<AppTab>("overview");
   const currentUser = store.users.find((user) => user.id === store.currentUserId);
 
   function commit(next: Store) {
@@ -173,6 +176,7 @@ export function App() {
     const nextVehicle = { ...vehicle, id: makeId("vehicle"), userId: currentUser.id };
     commit({ ...store, vehicles: [...store.vehicles, nextVehicle] });
     setSelectedVehicleId(nextVehicle.id);
+    setActiveTab("overview");
   }
 
   function addFuelRecord(record: Omit<FuelRecord, "id" | "userId">) {
@@ -243,29 +247,78 @@ export function App() {
             ))}
             {userVehicles.length === 0 && <p className="empty">还没有车辆，先添加一台开始记录。</p>}
           </div>
-          <VehicleForm onAdd={addVehicle} />
+          <button className="secondary-button full-width" type="button" onClick={() => setActiveTab("vehicles")}>
+            管理车辆
+          </button>
         </aside>
 
         <div className="content">
-          {activeVehicle ? (
+          {activeVehicle || activeTab === "vehicles" ? (
             <>
-              <Dashboard vehicle={activeVehicle} fuelRecords={fuelRecords} washRecords={washRecords} />
-              <div className="forms-grid">
-                <FuelForm vehicle={activeVehicle} onAdd={addFuelRecord} />
-                <WashForm vehicle={activeVehicle} onAdd={addWashRecord} />
-              </div>
-              <Records fuelRecords={fuelRecords} washRecords={washRecords} />
+              <TabBar activeTab={activeTab} onChange={setActiveTab} />
+              {activeTab === "overview" && activeVehicle && (
+                <>
+                  <Dashboard vehicle={activeVehicle} fuelRecords={fuelRecords} washRecords={washRecords} />
+                  <Records fuelRecords={fuelRecords} washRecords={washRecords} />
+                </>
+              )}
+              {activeTab === "fuel" && activeVehicle && (
+                <section className="tab-layout">
+                  <FuelForm vehicle={activeVehicle} onAdd={addFuelRecord} />
+                  <FuelRecordsPanel fuelRecords={fuelRecords} limit={12} />
+                </section>
+              )}
+              {activeTab === "wash" && activeVehicle && (
+                <section className="tab-layout">
+                  <WashForm vehicle={activeVehicle} onAdd={addWashRecord} />
+                  <WashRecordsPanel washRecords={washRecords} limit={12} />
+                </section>
+              )}
+              {activeTab === "vehicles" && (
+                <section className="tab-layout">
+                  <VehicleForm onAdd={addVehicle} />
+                  <VehicleSummary vehicles={userVehicles} activeVehicleId={activeVehicleId} onSelect={setSelectedVehicleId} />
+                </section>
+              )}
             </>
           ) : (
             <div className="blank-state">
               <Wrench size={42} />
               <h2>先绑定你的第一台车</h2>
               <p>添加品牌、型号、能源类型和车牌后，加油和洗车数据都会按车辆独立统计。</p>
+              <button className="primary-button" type="button" onClick={() => setActiveTab("vehicles")}>
+                添加车辆
+              </button>
             </div>
           )}
         </div>
       </section>
     </main>
+  );
+}
+
+function TabBar({ activeTab, onChange }: { activeTab: AppTab; onChange: (tab: AppTab) => void }) {
+  const tabs: { id: AppTab; label: string; icon: React.ReactNode }[] = [
+    { id: "overview", label: "概览", icon: <Car size={16} /> },
+    { id: "fuel", label: "加油", icon: <Fuel size={16} /> },
+    { id: "wash", label: "洗车", icon: <Sparkles size={16} /> },
+    { id: "vehicles", label: "车辆", icon: <Wrench size={16} /> },
+  ];
+
+  return (
+    <nav className="tabs" aria-label="功能导航">
+      {tabs.map((tab) => (
+        <button
+          className={activeTab === tab.id ? "tab active" : "tab"}
+          key={tab.id}
+          type="button"
+          onClick={() => onChange(tab.id)}
+        >
+          {tab.icon}
+          <span>{tab.label}</span>
+        </button>
+      ))}
+    </nav>
   );
 }
 
@@ -430,6 +483,42 @@ function VehicleForm({ onAdd }: { onAdd: (vehicle: Omit<Vehicle, "id" | "userId"
         添加车辆
       </button>
     </form>
+  );
+}
+
+function VehicleSummary({
+  vehicles,
+  activeVehicleId,
+  onSelect,
+}: {
+  vehicles: Vehicle[];
+  activeVehicleId: string;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <section className="panel">
+      <div className="section-title">
+        <Car size={17} />
+        <span>已绑定车辆</span>
+      </div>
+      <div className="vehicle-summary-list">
+        {vehicles.map((vehicle) => (
+          <button
+            className={vehicle.id === activeVehicleId ? "summary-row active" : "summary-row"}
+            key={vehicle.id}
+            type="button"
+            onClick={() => onSelect(vehicle.id)}
+          >
+            <strong>{vehicle.nickname}</strong>
+            <span>
+              {vehicle.brand} {vehicle.model} · {vehicle.year} · {vehicle.energyType}
+              {vehicle.plate ? ` · ${vehicle.plate}` : ""}
+            </span>
+          </button>
+        ))}
+        {vehicles.length === 0 && <p className="empty">还没有绑定车辆。</p>}
+      </div>
+    </section>
   );
 }
 
@@ -780,44 +869,56 @@ function WashForm({
 function Records({ fuelRecords, washRecords }: { fuelRecords: FuelRecord[]; washRecords: WashRecord[] }) {
   return (
     <section className="records-grid">
-      <div className="panel">
-        <div className="section-title">
-          <Fuel size={17} />
-          <span>最近加油</span>
-        </div>
-        <RecordList
-          empty="暂无加油记录"
-          rows={fuelRecords.slice(0, 6).map((record) => ({
-            id: record.id,
-            title: `${record.fuelGrade ? `${record.fuelGrade} · ` : ""}${record.volume} L · ${money(record.paidAmount ?? record.totalCost)}`,
-            meta: [
-              record.date,
-              record.odometer != null ? `${record.odometer} km` : "",
-              record.station,
-              record.fuelLevelBefore != null || record.fuelLevelAfter != null
-                ? `油位 ${record.fuelLevelBefore ?? "-"}% -> ${record.fuelLevelAfter ?? "-"}%`
-                : "",
-            ]
-              .filter(Boolean)
-              .join(" · "),
-          }))}
-        />
-      </div>
-      <div className="panel">
-        <div className="section-title">
-          <Sparkles size={17} />
-          <span>最近洗车</span>
-        </div>
-        <RecordList
-          empty="暂无洗车记录"
-          rows={washRecords.slice(0, 6).map((record) => ({
-            id: record.id,
-            title: `${record.items.join(" / ") || "DIY 洗车"} · ${money(record.cost)}`,
-            meta: `${record.date} · ${record.odometer} km · ${record.minutes} 分钟`,
-          }))}
-        />
-      </div>
+      <FuelRecordsPanel fuelRecords={fuelRecords} limit={6} />
+      <WashRecordsPanel washRecords={washRecords} limit={6} />
     </section>
+  );
+}
+
+function FuelRecordsPanel({ fuelRecords, limit }: { fuelRecords: FuelRecord[]; limit: number }) {
+  return (
+    <div className="panel">
+      <div className="section-title">
+        <Fuel size={17} />
+        <span>{limit > 6 ? "加油记录" : "最近加油"}</span>
+      </div>
+      <RecordList
+        empty="暂无加油记录"
+        rows={fuelRecords.slice(0, limit).map((record) => ({
+          id: record.id,
+          title: `${record.fuelGrade ? `${record.fuelGrade} · ` : ""}${record.volume} L · ${money(record.paidAmount ?? record.totalCost)}`,
+          meta: [
+            record.date,
+            record.odometer != null ? `${record.odometer} km` : "",
+            record.station,
+            record.fuelLevelBefore != null || record.fuelLevelAfter != null
+              ? `油位 ${record.fuelLevelBefore ?? "-"}% -> ${record.fuelLevelAfter ?? "-"}%`
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        }))}
+      />
+    </div>
+  );
+}
+
+function WashRecordsPanel({ washRecords, limit }: { washRecords: WashRecord[]; limit: number }) {
+  return (
+    <div className="panel">
+      <div className="section-title">
+        <Sparkles size={17} />
+        <span>{limit > 6 ? "洗车记录" : "最近洗车"}</span>
+      </div>
+      <RecordList
+        empty="暂无洗车记录"
+        rows={washRecords.slice(0, limit).map((record) => ({
+          id: record.id,
+          title: `${record.items.join(" / ") || "DIY 洗车"} · ${money(record.cost)}`,
+          meta: `${record.date} · ${record.odometer} km · ${record.minutes} 分钟`,
+        }))}
+      />
+    </div>
   );
 }
 

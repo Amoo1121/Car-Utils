@@ -158,6 +158,37 @@ button {
   background: #f3fbdf;
 }
 
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 6px;
+  border: 1px solid #dfe6da;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow-x: auto;
+}
+
+.tab {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  color: #536153;
+  background: transparent;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.tab.active {
+  color: #15201b;
+  background: #c8f26d;
+}
+
 .hero-band {
   display: grid;
   grid-template-columns: minmax(220px, 0.8fr) 1.2fr;
@@ -220,6 +251,13 @@ button {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
   margin-top: 18px;
+}
+
+.tab-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.85fr) minmax(360px, 1.15fr);
+  gap: 18px;
+  align-items: start;
 }
 
 .panel {
@@ -353,6 +391,36 @@ select:focus {
   background: #25332a;
 }
 
+.full-width {
+  width: 100%;
+}
+
+.vehicle-summary-list {
+  display: grid;
+  gap: 10px;
+}
+
+.summary-row {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  padding: 13px 14px;
+  border: 1px solid #dfe6da;
+  border-radius: 8px;
+  color: #17201b;
+  text-align: left;
+  background: #fbfcfa;
+}
+
+.summary-row span {
+  color: #667166;
+}
+
+.summary-row.active {
+  border-color: #86a841;
+  background: #f3fbdf;
+}
+
 .record-list {
   list-style: none;
   display: grid;
@@ -415,6 +483,7 @@ select:focus {
 
   .forms-grid,
   .records-grid,
+  .tab-layout,
   .two-cols,
   .stats-grid {
     grid-template-columns: 1fr;
