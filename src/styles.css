@@ -260,6 +260,18 @@ button {
   align-items: start;
 }
 
+.tab-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.fuel-insights {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
 .panel {
   padding: 16px;
   border: 1px solid #dfe6da;
@@ -273,6 +285,143 @@ button {
   gap: 8px;
   margin-bottom: 12px;
   font-weight: 800;
+}
+
+.insight-panel {
+  min-width: 0;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.chart-card {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f6f8f4;
+}
+
+.chart-header,
+.chart-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chart-header span,
+.chart-footer,
+.analysis-note,
+.station-performance-row span,
+.station-summary-pill span {
+  color: #667166;
+}
+
+.chart-header span {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.chart-header strong {
+  color: #17201b;
+  font-size: 18px;
+}
+
+.chart-header small {
+  color: #667166;
+  font-size: 11px;
+}
+
+.chart-footer {
+  font-size: 11px;
+}
+
+.line-chart {
+  width: 100%;
+  height: 150px;
+  overflow: visible;
+}
+
+.line-chart line {
+  stroke: #dfe6da;
+  stroke-width: 1;
+}
+
+.line-chart polyline {
+  fill: none;
+  stroke: #6f9332;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.line-chart circle {
+  fill: #c8f26d;
+  stroke: #25332a;
+  stroke-width: 1.5;
+}
+
+.chart-empty {
+  min-height: 150px;
+  display: grid;
+  place-items: center;
+  color: #667166;
+  font-size: 13px;
+  text-align: center;
+}
+
+.analysis-note {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.station-performance-list,
+.station-summary-list {
+  display: grid;
+  gap: 10px;
+}
+
+.station-performance-list {
+  margin-bottom: 12px;
+}
+
+.station-performance-row,
+.station-summary-pill {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f6f8f4;
+}
+
+.station-performance-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.station-performance-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.station-performance-row div:last-child {
+  text-align: right;
+}
+
+.station-performance-row strong,
+.station-summary-pill strong {
+  color: #17201b;
+}
+
+.station-performance-row span,
+.station-summary-pill span {
+  font-size: 12px;
 }
 
 .stack {
@@ -462,7 +611,8 @@ select:focus {
 
 @media (max-width: 1080px) {
   .workspace,
-  .hero-band {
+  .hero-band,
+  .fuel-insights {
     grid-template-columns: 1fr;
   }
 
@@ -484,8 +634,17 @@ select:focus {
   .forms-grid,
   .records-grid,
   .tab-layout,
+  .chart-grid,
   .two-cols,
   .stats-grid {
     grid-template-columns: 1fr;
+  }
+
+  .station-performance-row {
+    grid-template-columns: 1fr;
+  }
+
+  .station-performance-row div:last-child {
+    text-align: left;
   }
 }

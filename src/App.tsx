@@ -140,6 +140,24 @@ function number(value: number, digits = 1) {
   return Number.isFinite(value) ? value.toFixed(digits) : "-";
 }
 
+function recordCost(record: FuelRecord) {
+  return record.paidAmount ?? record.totalCost;
+}
+
+function paidUnitPrice(record: FuelRecord) {
+  if (record.volume <= 0) return record.pricePerUnit;
+  return recordCost(record) / record.volume;
+}
+
+function compactDate(date: string) {
+  const [, month, day] = date.split("-");
+  return month && day ? `${Number(month)}/${Number(day)}` : date;
+}
+
+function stationName(record: FuelRecord) {
+  return record.station.trim() || "未记录加油站";
+}
+
 export function App() {
   const [store, setStore] = useState<Store>(() => loadStore());
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
@@ -263,9 +281,12 @@ export function App() {
                 </>
               )}
               {activeTab === "fuel" && activeVehicle && (
-                <section className="tab-layout">
-                  <FuelForm vehicle={activeVehicle} onAdd={addFuelRecord} />
-                  <FuelRecordsPanel fuelRecords={fuelRecords} limit={12} />
+                <section className="tab-stack">
+                  <FuelInsights vehicle={activeVehicle} fuelRecords={fuelRecords} />
+                  <div className="tab-layout">
+                    <FuelForm vehicle={activeVehicle} onAdd={addFuelRecord} />
+                    <FuelRecordsPanel fuelRecords={fuelRecords} limit={12} />
+                  </div>
                 </section>
               )}
               {activeTab === "wash" && activeVehicle && (
@@ -465,7 +486,14 @@ function VehicleForm({ onAdd }: { onAdd: (vehicle: Omit<Vehicle, "id" | "userId"
           能源
           <select
             value={vehicle.energyType}
-            onChange={(event) => setVehicle({ ...vehicle, energyType: event.target.value as EnergyType })}
+            onChange={(event) => {
+              const energyType = event.target.value as EnergyType;
+              setVehicle({
+                ...vehicle,
+                energyType,
+                tankSize: energyType === "纯电" ? undefined : vehicle.tankSize || 55,
+              });
+            }}
           >
             <option>汽油</option>
             <option>柴油</option>
@@ -475,6 +503,21 @@ function VehicleForm({ onAdd }: { onAdd: (vehicle: Omit<Vehicle, "id" | "userId"
           </select>
         </label>
       </div>
+      {vehicle.energyType !== "纯电" && (
+        <label>
+          油箱容量 L
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            value={vehicle.tankSize ?? ""}
+            onChange={(event) =>
+              setVehicle({ ...vehicle, tankSize: event.target.value ? Number(event.target.value) : undefined })
+            }
+            placeholder="例如 55"
+          />
+        </label>
+      )}
       <label>
         车牌 / 备注
         <input value={vehicle.plate} onChange={(event) => setVehicle({ ...vehicle, plate: event.target.value })} />
@@ -512,6 +555,7 @@ function VehicleSummary({
             <strong>{vehicle.nickname}</strong>
             <span>
               {vehicle.brand} {vehicle.model} · {vehicle.year} · {vehicle.energyType}
+              {vehicle.energyType !== "纯电" && vehicle.tankSize ? ` · ${vehicle.tankSize}L油箱` : ""}
               {vehicle.plate ? ` · ${vehicle.plate}` : ""}
             </span>
           </button>
@@ -580,6 +624,252 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
   );
 }
 
+type ChartPoint = {
+  label: string;
+  value: number;
+};
+
+type StationSummary = {
+  station: string;
+  recordCount: number;
+  avgUnitPrice: number;
+  totalVolume: number;
+};
+
+type StationPerformance = StationSummary & {
+  intervals: number;
+  avgConsumption: number;
+};
+
+function FuelInsights({ vehicle, fuelRecords }: { vehicle: Vehicle; fuelRecords: FuelRecord[] }) {
+  const insights = useMemo(() => {
+    const ordered = [...fuelRecords].sort((a, b) => a.date.localeCompare(b.date));
+    const recent = ordered.slice(-12);
+    const pricePoints = recent.map((record) => ({
+      label: compactDate(record.date),
+      value: paidUnitPrice(record),
+    }));
+    const costPoints = recent.map((record) => ({
+      label: compactDate(record.date),
+      value: recordCost(record),
+    }));
+
+    const stationSummaryMap = new Map<string, { count: number; unitPriceTotal: number; volume: number }>();
+    ordered.forEach((record) => {
+      const station = stationName(record);
+      const current = stationSummaryMap.get(station) ?? { count: 0, unitPriceTotal: 0, volume: 0 };
+      current.count += 1;
+      current.unitPriceTotal += paidUnitPrice(record);
+      current.volume += record.volume;
+      stationSummaryMap.set(station, current);
+    });
+
+    const stationSummaries: StationSummary[] = [...stationSummaryMap.entries()]
+      .map(([station, summary]) => ({
+        station,
+        recordCount: summary.count,
+        avgUnitPrice: summary.unitPriceTotal / summary.count,
+        totalVolume: summary.volume,
+      }))
+      .sort((a, b) => b.recordCount - a.recordCount || a.avgUnitPrice - b.avgUnitPrice);
+
+    const tankSize =
+      vehicle.energyType !== "纯电" && vehicle.tankSize && vehicle.tankSize > 0 ? vehicle.tankSize : undefined;
+    const recordsWithOdometer = ordered
+      .filter((record) => typeof record.odometer === "number")
+      .sort((a, b) => a.odometer! - b.odometer!);
+    const performanceMap = new Map<string, { intervals: number; consumptionTotal: number }>();
+
+    if (tankSize) {
+      for (let index = 1; index < recordsWithOdometer.length; index += 1) {
+        const previous = recordsWithOdometer[index - 1];
+        const current = recordsWithOdometer[index];
+        const previousStation = previous.station.trim();
+        const distance = current.odometer! - previous.odometer!;
+        const hasFuelLevels = previous.fuelLevelAfter != null && current.fuelLevelBefore != null;
+
+        if (!previousStation || !hasFuelLevels || distance <= 0) continue;
+
+        const consumedVolume = tankSize * ((previous.fuelLevelAfter! - current.fuelLevelBefore!) / 100);
+        const consumption = (consumedVolume / distance) * 100;
+
+        if (consumedVolume <= 0 || consumption < 2 || consumption > 30) continue;
+
+        const station = stationName(previous);
+        const currentPerformance = performanceMap.get(station) ?? { intervals: 0, consumptionTotal: 0 };
+        currentPerformance.intervals += 1;
+        currentPerformance.consumptionTotal += consumption;
+        performanceMap.set(station, currentPerformance);
+      }
+    }
+
+    const stationPerformances: StationPerformance[] = [...performanceMap.entries()]
+      .map(([station, performance]) => {
+        const summary = stationSummaries.find((item) => item.station === station);
+        return {
+          station,
+          intervals: performance.intervals,
+          avgConsumption: performance.consumptionTotal / performance.intervals,
+          recordCount: summary?.recordCount ?? 0,
+          avgUnitPrice: summary?.avgUnitPrice ?? 0,
+          totalVolume: summary?.totalVolume ?? 0,
+        };
+      })
+      .filter((item) => item.intervals >= 2)
+      .sort((a, b) => a.avgConsumption - b.avgConsumption);
+
+    const canCompareStations = stationPerformances.length >= 2;
+
+    return {
+      pricePoints,
+      costPoints,
+      stationSummaries,
+      stationPerformances,
+      canCompareStations,
+      hasTankSize: Boolean(tankSize),
+      validIntervalCount: [...performanceMap.values()].reduce((sum, item) => sum + item.intervals, 0),
+    };
+  }, [fuelRecords, vehicle.energyType, vehicle.tankSize]);
+
+  return (
+    <section className="fuel-insights">
+      <div className="panel insight-panel">
+        <div className="section-title">
+          <Fuel size={17} />
+          <span>加油趋势</span>
+        </div>
+        <div className="chart-grid">
+          <MiniLineChart title="实付单价趋势" unit="元/L" points={insights.pricePoints} digits={2} />
+          <MiniLineChart title="单次实付金额" unit="元" points={insights.costPoints} digits={0} />
+        </div>
+      </div>
+
+      <div className="panel insight-panel">
+        <div className="section-title">
+          <Info size={17} />
+          <span>加油站参考</span>
+        </div>
+        {insights.canCompareStations ? (
+          <>
+            <p className="analysis-note">
+              使用“上一笔加油后油位到下一笔加油前油位”和总里程估算区间消耗，按上一笔加油站归因；路况、天气和驾驶方式仍会影响结果。
+            </p>
+            <div className="station-performance-list">
+              {insights.stationPerformances.map((station) => (
+                <div className="station-performance-row" key={station.station}>
+                  <div>
+                    <strong>{station.station}</strong>
+                    <span>{station.intervals} 段可信区间</span>
+                  </div>
+                  <div>
+                    <strong>{number(station.avgConsumption, 2)} L/100km</strong>
+                    <span>均价 {number(station.avgUnitPrice, 2)} 元/L</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="empty">
+            暂不做加油站表现判断。需要至少两个加油站各有 2 段可信区间；可信区间需要两笔总里程、上一笔加油后油位、下一笔加油前油位{insights.hasTankSize ? "" : "，以及车辆油箱容量"}。
+          </p>
+        )}
+
+        <StationSummaryList summaries={insights.stationSummaries} />
+      </div>
+    </section>
+  );
+}
+
+function MiniLineChart({
+  title,
+  unit,
+  points,
+  digits,
+}: {
+  title: string;
+  unit: string;
+  points: ChartPoint[];
+  digits: number;
+}) {
+  const validPoints = points.filter((point) => Number.isFinite(point.value));
+  const latest = validPoints.at(-1);
+
+  if (validPoints.length < 2) {
+    return (
+      <div className="chart-card">
+        <div className="chart-header">
+          <span>{title}</span>
+          <strong>-</strong>
+        </div>
+        <div className="chart-empty">至少 2 条记录后显示趋势</div>
+      </div>
+    );
+  }
+
+  const min = Math.min(...validPoints.map((point) => point.value));
+  const max = Math.max(...validPoints.map((point) => point.value));
+  const range = max - min || 1;
+  const width = 320;
+  const height = 160;
+  const left = 22;
+  const right = 304;
+  const top = 22;
+  const bottom = 124;
+  const coordinates = validPoints.map((point, index) => {
+    const x = validPoints.length === 1 ? left : left + ((right - left) * index) / (validPoints.length - 1);
+    const y = bottom - ((point.value - min) / range) * (bottom - top);
+    return { ...point, x, y };
+  });
+  const polylinePoints = coordinates.map((point) => `${point.x},${point.y}`).join(" ");
+
+  return (
+    <div className="chart-card">
+      <div className="chart-header">
+        <span>{title}</span>
+        <strong>
+          {latest ? number(latest.value, digits) : "-"} <small>{unit}</small>
+        </strong>
+      </div>
+      <svg className="line-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}>
+        <line x1={left} x2={right} y1={top} y2={top} />
+        <line x1={left} x2={right} y1={(top + bottom) / 2} y2={(top + bottom) / 2} />
+        <line x1={left} x2={right} y1={bottom} y2={bottom} />
+        <polyline points={polylinePoints} />
+        {coordinates.map((point) => (
+          <circle cx={point.x} cy={point.y} key={`${point.label}-${point.x}`} r="3.5" />
+        ))}
+      </svg>
+      <div className="chart-footer">
+        <span>{validPoints[0].label}</span>
+        <span>
+          {number(min, digits)} - {number(max, digits)}
+        </span>
+        <span>{validPoints[validPoints.length - 1].label}</span>
+      </div>
+    </div>
+  );
+}
+
+function StationSummaryList({ summaries }: { summaries: StationSummary[] }) {
+  if (summaries.length === 0) {
+    return <p className="empty">暂无加油站数据。</p>;
+  }
+
+  return (
+    <div className="station-summary-list">
+      {summaries.slice(0, 5).map((summary) => (
+        <div className="station-summary-pill" key={summary.station}>
+          <strong>{summary.station}</strong>
+          <span>
+            {summary.recordCount} 次 · {number(summary.totalVolume, 1)} L · 均价 {number(summary.avgUnitPrice, 2)} 元/L
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function FuelForm({
   vehicle,
   onAdd,
@@ -598,7 +888,7 @@ function FuelForm({
     fuelLevelBefore: "",
     fuelLevelAfter: "",
     station: "",
-    fullTank: true,
+    fullTank: false,
   });
 
   const totalCost = Number(form.volume) * Number(form.pricePerUnit);
@@ -633,7 +923,7 @@ function FuelForm({
       fuelLevelBefore: "",
       fuelLevelAfter: "",
       station: "",
-      fullTank: true,
+      fullTank: false,
     });
   }
 
