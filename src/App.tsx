@@ -133,6 +133,25 @@ export function App() {
     setActiveTab("overview");
   }
 
+  function updateVehicle(vehicleId: string, vehicle: Omit<Vehicle, "id" | "userId">) {
+    if (!currentUser) return;
+    commit({
+      ...store,
+      vehicles: store.vehicles.map((currentVehicle) =>
+        currentVehicle.id === vehicleId && currentVehicle.userId === currentUser.id
+          ? withUpdatedTimestamp({
+              ...vehicle,
+              id: currentVehicle.id,
+              userId: currentVehicle.userId,
+              createdAt: currentVehicle.createdAt,
+              deletedAt: currentVehicle.deletedAt,
+            })
+          : currentVehicle,
+      ),
+    });
+    setSelectedVehicleId(vehicleId);
+  }
+
   function addFuelRecord(record: Omit<FuelRecord, "id" | "userId">) {
     if (!currentUser) return;
     commit({
@@ -388,10 +407,13 @@ export function App() {
                 />
               )}
               {activeTab === "vehicles" && (
-                <section className="tab-layout">
-                  <VehicleForm onAdd={addVehicle} />
-                  <VehicleSummary vehicles={userVehicles} activeVehicleId={activeVehicleId} onSelect={setSelectedVehicleId} />
-                </section>
+                <VehicleManager
+                  activeVehicleId={activeVehicleId}
+                  onAdd={addVehicle}
+                  onSelect={setSelectedVehicleId}
+                  onUpdate={updateVehicle}
+                  vehicles={userVehicles}
+                />
               )}
               {activeTab === "sync" && <DataSyncPanel store={store} onImport={importStore} />}
             </>
@@ -890,9 +912,10 @@ function LoginScreen({ onLogin }: { onLogin: (name: string, email: string) => vo
   );
 }
 
-function VehicleForm({ onAdd }: { onAdd: (vehicle: Omit<Vehicle, "id" | "userId">) => void }) {
-  const [presetKey, setPresetKey] = useState("");
-  const [vehicle, setVehicle] = useState<Omit<Vehicle, "id" | "userId">>({
+type VehicleDraft = Omit<Vehicle, "id" | "userId">;
+
+function createEmptyVehicleDraft(): VehicleDraft {
+  return {
     nickname: "",
     brand: "",
     model: "",
@@ -901,7 +924,94 @@ function VehicleForm({ onAdd }: { onAdd: (vehicle: Omit<Vehicle, "id" | "userId"
     energyType: "汽油",
     tankSize: 55,
     batterySize: undefined,
-  });
+    currentOdometer: undefined,
+    vin: "",
+    note: "",
+  };
+}
+
+function createVehicleDraft(vehicle: Vehicle): VehicleDraft {
+  return {
+    type: "vehicle",
+    nickname: vehicle.nickname ?? "",
+    brand: vehicle.brand ?? "",
+    model: vehicle.model ?? "",
+    year: vehicle.year ?? "",
+    plate: vehicle.plate ?? "",
+    energyType: vehicle.energyType ?? "汽油",
+    tankSize: vehicle.tankSize,
+    batterySize: vehicle.batterySize,
+    currentOdometer: vehicle.currentOdometer,
+    vin: vehicle.vin ?? "",
+    note: vehicle.note ?? "",
+    presetId: vehicle.presetId,
+    isArchived: vehicle.isArchived,
+  };
+}
+
+function VehicleManager({
+  activeVehicleId,
+  onAdd,
+  onSelect,
+  onUpdate,
+  vehicles,
+}: {
+  activeVehicleId: string;
+  onAdd: (vehicle: VehicleDraft) => void;
+  onSelect: (id: string) => void;
+  onUpdate: (vehicleId: string, vehicle: VehicleDraft) => void;
+  vehicles: Vehicle[];
+}) {
+  const [editingVehicleId, setEditingVehicleId] = useState("");
+  const editingVehicle = vehicles.find((vehicle) => vehicle.id === editingVehicleId);
+
+  function startEditing(vehicleId: string) {
+    setEditingVehicleId(vehicleId);
+    onSelect(vehicleId);
+  }
+
+  return (
+    <section className="tab-layout">
+      <VehicleForm
+        key={editingVehicle?.id ?? "new-vehicle"}
+        initialVehicle={editingVehicle}
+        mode={editingVehicle ? "edit" : "create"}
+        onCancel={editingVehicle ? () => setEditingVehicleId("") : undefined}
+        onSubmit={(vehicle) => {
+          if (editingVehicle) {
+            onUpdate(editingVehicle.id, vehicle);
+            setEditingVehicleId("");
+          } else {
+            onAdd(vehicle);
+          }
+        }}
+      />
+      <VehicleSummary
+        activeVehicleId={activeVehicleId}
+        editingVehicleId={editingVehicleId}
+        onEdit={startEditing}
+        onSelect={onSelect}
+        vehicles={vehicles}
+      />
+    </section>
+  );
+}
+
+function VehicleForm({
+  initialVehicle,
+  mode,
+  onCancel,
+  onSubmit,
+}: {
+  initialVehicle?: Vehicle;
+  mode: "create" | "edit";
+  onCancel?: () => void;
+  onSubmit: (vehicle: VehicleDraft) => void;
+}) {
+  const [presetKey, setPresetKey] = useState("");
+  const [vehicle, setVehicle] = useState<VehicleDraft>(() =>
+    initialVehicle ? createVehicleDraft(initialVehicle) : createEmptyVehicleDraft(),
+  );
 
   function applyPreset(key: string) {
     setPresetKey(key);
@@ -922,25 +1032,16 @@ function VehicleForm({ onAdd }: { onAdd: (vehicle: Omit<Vehicle, "id" | "userId"
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!vehicle.nickname.trim() || !vehicle.brand.trim() || !vehicle.model.trim()) return;
-    onAdd(vehicle);
+    onSubmit(vehicle);
     setPresetKey("");
-    setVehicle({
-      nickname: "",
-      brand: "",
-      model: "",
-      year: new Date().getFullYear().toString(),
-      plate: "",
-      energyType: "汽油",
-      tankSize: 55,
-      batterySize: undefined,
-    });
+    if (mode === "create") setVehicle(createEmptyVehicleDraft());
   }
 
   return (
     <form className="panel stack" onSubmit={submit}>
       <div className="section-title">
         <Plus size={17} />
-        <span>添加车辆</span>
+        <span>{mode === "edit" ? "编辑车辆" : "添加车辆"}</span>
       </div>
       <label>
         型号预设
@@ -997,6 +1098,10 @@ function VehicleForm({ onAdd }: { onAdd: (vehicle: Omit<Vehicle, "id" | "userId"
                 ...vehicle,
                 energyType,
                 tankSize: energyType === "纯电" ? undefined : vehicle.tankSize || 55,
+                batterySize:
+                  energyType === "纯电" || energyType === "混动" || energyType === "增程"
+                    ? vehicle.batterySize
+                    : undefined,
               });
             }}
           >
@@ -1023,13 +1128,58 @@ function VehicleForm({ onAdd }: { onAdd: (vehicle: Omit<Vehicle, "id" | "userId"
           />
         </label>
       )}
+      {(vehicle.energyType === "纯电" || vehicle.energyType === "混动" || vehicle.energyType === "增程") && (
+        <label>
+          电池容量 kWh
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            value={vehicle.batterySize ?? ""}
+            onChange={(event) =>
+              setVehicle({ ...vehicle, batterySize: event.target.value ? Number(event.target.value) : undefined })
+            }
+            placeholder="例如 60"
+          />
+        </label>
+      )}
+      <div className="two-cols">
+        <label>
+          车牌
+          <input value={vehicle.plate} onChange={(event) => setVehicle({ ...vehicle, plate: event.target.value })} />
+        </label>
+        <label>
+          当前总里程 km
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            value={vehicle.currentOdometer ?? ""}
+            onChange={(event) =>
+              setVehicle({ ...vehicle, currentOdometer: event.target.value ? Number(event.target.value) : undefined })
+            }
+            placeholder="可选"
+          />
+        </label>
+      </div>
       <label>
-        车牌 / 备注
-        <input value={vehicle.plate} onChange={(event) => setVehicle({ ...vehicle, plate: event.target.value })} />
+        VIN
+        <input value={vehicle.vin ?? ""} onChange={(event) => setVehicle({ ...vehicle, vin: event.target.value })} />
       </label>
-      <button className="secondary-button" type="submit">
-        添加车辆
-      </button>
+      <label>
+        备注
+        <input value={vehicle.note ?? ""} onChange={(event) => setVehicle({ ...vehicle, note: event.target.value })} />
+      </label>
+      <div className="form-actions">
+        <button className="secondary-button" type="submit">
+          {mode === "edit" ? "保存车辆" : "添加车辆"}
+        </button>
+        {onCancel && (
+          <button className="ghost-button" type="button" onClick={onCancel}>
+            取消
+          </button>
+        )}
+      </div>
     </form>
   );
 }
@@ -1037,10 +1187,14 @@ function VehicleForm({ onAdd }: { onAdd: (vehicle: Omit<Vehicle, "id" | "userId"
 function VehicleSummary({
   vehicles,
   activeVehicleId,
+  editingVehicleId,
+  onEdit,
   onSelect,
 }: {
   vehicles: Vehicle[];
   activeVehicleId: string;
+  editingVehicleId: string;
+  onEdit: (id: string) => void;
   onSelect: (id: string) => void;
 }) {
   return (
@@ -1051,19 +1205,30 @@ function VehicleSummary({
       </div>
       <div className="vehicle-summary-list">
         {vehicles.map((vehicle) => (
-          <button
-            className={vehicle.id === activeVehicleId ? "summary-row active" : "summary-row"}
+          <div
+            className={
+              vehicle.id === editingVehicleId
+                ? "summary-row editing"
+                : vehicle.id === activeVehicleId
+                  ? "summary-row active"
+                  : "summary-row"
+            }
             key={vehicle.id}
-            type="button"
-            onClick={() => onSelect(vehicle.id)}
           >
-            <strong>{vehicle.nickname}</strong>
-            <span>
-              {vehicle.brand} {vehicle.model} · {vehicle.year} · {vehicle.energyType}
-              {vehicle.energyType !== "纯电" && vehicle.tankSize ? ` · ${vehicle.tankSize}L油箱` : ""}
-              {vehicle.plate ? ` · ${vehicle.plate}` : ""}
-            </span>
-          </button>
+            <button className="summary-main" type="button" onClick={() => onSelect(vehicle.id)}>
+              <strong>{vehicle.nickname}</strong>
+              <span>
+                {vehicle.brand} {vehicle.model} · {vehicle.year || "未填年款"} · {vehicle.energyType}
+                {vehicle.energyType !== "纯电" && vehicle.tankSize ? ` · ${vehicle.tankSize}L油箱` : ""}
+                {vehicle.batterySize ? ` · ${vehicle.batterySize}kWh电池` : ""}
+                {vehicle.currentOdometer != null ? ` · ${vehicle.currentOdometer}km` : ""}
+                {vehicle.plate ? ` · ${vehicle.plate}` : ""}
+              </span>
+            </button>
+            <button className="text-button" type="button" onClick={() => onEdit(vehicle.id)}>
+              编辑
+            </button>
+          </div>
         ))}
         {vehicles.length === 0 && <p className="empty">还没有绑定车辆。</p>}
       </div>

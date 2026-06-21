@@ -1080,13 +1080,25 @@ select:focus {
 .summary-row {
   width: 100%;
   display: grid;
-  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
   padding: 13px 14px;
   border: 1px solid #dfe6da;
   border-radius: 8px;
   color: #17201b;
-  text-align: left;
   background: #fbfcfa;
+}
+
+.summary-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
 }
 
 .summary-row span {
@@ -1096,6 +1108,11 @@ select:focus {
 .summary-row.active {
   border-color: #86a841;
   background: #f3fbdf;
+}
+
+.summary-row.editing {
+  border-color: #6f9332;
+  background: #edf8d5;
 }
 
 .record-list {
@@ -1287,6 +1304,10 @@ select:focus {
   }
 
   .station-performance-row {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-row {
     grid-template-columns: 1fr;
   }
 
