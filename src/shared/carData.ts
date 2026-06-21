@@ -86,6 +86,8 @@ export type FuelRecord = BaseEntity & {
 
 export type WashType =
   | "diy"
+  | "shop_basic"
+  | "shop_detailing"
   | "machine"
   | "detailing"
   | "wax"
@@ -95,10 +97,20 @@ export type WashType =
   | "other";
 
 export type WashProductUsage = {
+  id?: string;
   name: string;
   category?: string;
+  step?: string;
   amount?: string;
+  purchasePrice?: number;
+  capacity?: number;
+  capacityUnit?: "ml" | "L" | "g" | "kg" | "pcs";
+  usedAmount?: number;
+  usedUnit?: "ml" | "L" | "g" | "pcs";
+  dilutionRatio?: string;
+  estimatedCost?: number;
   cost?: number;
+  note?: string;
 };
 
 export type WashRecord = BaseEntity & {
@@ -106,12 +118,16 @@ export type WashRecord = BaseEntity & {
   userId: string;
   vehicleId: string;
   date: string;
-  odometer: number;
+  odometer?: number;
   items: string[];
   minutes: number;
   cost: number;
   notes: string;
   washType?: WashType;
+  shopName?: string;
+  location?: string;
+  laborCost?: number;
+  materialCost?: number;
   waterElectricityCost?: number;
   locationCost?: number;
   products?: WashProductUsage[];

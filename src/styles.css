@@ -687,6 +687,42 @@ button {
   gap: 10px;
 }
 
+.three-cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.inline-panel {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #dfe6da;
+  border-radius: 8px;
+  background: #f6f8f4;
+}
+
+.inline-help {
+  margin: 4px 0 0;
+  color: #667166;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.product-usage-list {
+  display: grid;
+  gap: 12px;
+}
+
+.product-usage-row {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dfe6da;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -970,6 +1006,7 @@ select:focus {
   .tab-layout,
   .chart-grid,
   .data-count-grid,
+  .three-cols,
   .two-cols,
   .stats-grid {
     grid-template-columns: 1fr;
