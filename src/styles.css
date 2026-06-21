@@ -67,7 +67,14 @@ button {
 
 .app-shell {
   min-height: 100vh;
-  padding: 24px;
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  gap: 20px;
+  padding: 18px;
+}
+
+.app-shell.nav-collapsed {
+  grid-template-columns: 76px minmax(0, 1fr);
 }
 
 .topbar {
@@ -114,17 +121,153 @@ button {
   background: #eef2ea;
 }
 
-.workspace {
-  max-width: 1440px;
-  margin: 0 auto;
+.app-nav {
+  position: sticky;
+  top: 18px;
+  height: calc(100vh - 36px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 12px;
+  border: 1px solid #dfe6da;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.app-nav.collapsed {
+  align-items: center;
+}
+
+.nav-top {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-top strong {
+  display: block;
+  color: #17201b;
+  font-size: 15px;
+}
+
+.nav-toggle {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
   display: grid;
-  grid-template-columns: minmax(280px, 340px) 1fr;
-  gap: 20px;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  color: #17201b;
+  background: #eef2ea;
+}
+
+.nav-tabs,
+.nav-user {
+  display: grid;
+  gap: 8px;
+}
+
+.nav-tabs {
+  flex: 1;
+  align-content: start;
+}
+
+.nav-user {
+  padding-top: 12px;
+  border-top: 1px solid #dfe6da;
+}
+
+.nav-tab {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  color: #536153;
+  background: transparent;
+  font-weight: 800;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.app-nav.collapsed .nav-tab {
+  width: 42px;
+  justify-content: center;
+  padding: 0;
+}
+
+.nav-tab.active {
+  color: #15201b;
+  background: #c8f26d;
+}
+
+.nav-tab:not(.active):hover,
+.nav-toggle:hover {
+  background: #f3f6ef;
+}
+
+.nav-user-chip {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: #4c594e;
+  background: #f6f8f4;
+  font-weight: 800;
+  overflow: hidden;
+}
+
+.app-nav.collapsed .nav-user-chip {
+  width: 42px;
+  justify-content: center;
+  padding: 0;
+}
+
+.workspace {
+  min-width: 0;
+  max-width: 1440px;
+  width: 100%;
+  margin: 0 auto;
+  display: block;
 }
 
 .sidebar,
 .content {
   min-width: 0;
+}
+
+.page-header {
+  min-height: 68px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 30px;
+}
+
+.vehicle-switcher {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #dfe6da;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.vehicle-switcher label {
+  min-width: min(360px, 48vw);
 }
 
 .vehicle-list {
@@ -263,6 +406,32 @@ button {
 .tab-stack {
   display: grid;
   gap: 18px;
+}
+
+.module-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid #dfe6da;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow-x: auto;
+}
+
+.module-tab {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  color: #536153;
+  background: transparent;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.module-tab.active {
+  color: #15201b;
+  background: #c8f26d;
 }
 
 .sync-hero {
@@ -753,6 +922,18 @@ button {
   font-size: 12px;
 }
 
+.warehouse-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.warehouse-edit-form {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -1007,7 +1188,6 @@ select:focus {
 }
 
 @media (max-width: 1080px) {
-  .workspace,
   .hero-band,
   .sync-grid,
   .fuel-insights,
@@ -1023,12 +1203,50 @@ select:focus {
 
 @media (max-width: 720px) {
   .app-shell {
+    grid-template-columns: 1fr;
     padding: 16px;
   }
 
-  .topbar {
-    align-items: flex-start;
-    flex-direction: column;
+  .app-shell.nav-collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  .app-nav,
+  .app-nav.collapsed {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    height: auto;
+    align-items: stretch;
+  }
+
+  .app-nav.collapsed .nav-top {
+    justify-content: flex-start;
+  }
+
+  .nav-tabs {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .app-nav.collapsed .nav-tab {
+    width: 42px;
+    flex: 0 0 42px;
+  }
+
+  .nav-user {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .page-header,
+  .vehicle-switcher {
+    display: grid;
+    align-items: stretch;
+  }
+
+  .vehicle-switcher label {
+    min-width: 0;
   }
 
   .forms-grid,
@@ -1058,8 +1276,10 @@ select:focus {
     text-align: left;
   }
 
-  .warehouse-row div:last-child {
+  .warehouse-row div:last-child,
+  .warehouse-row-actions {
     text-align: left;
+    justify-content: flex-start;
   }
 
   .panel-heading-row,

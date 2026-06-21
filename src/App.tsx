@@ -7,6 +7,7 @@ import {
   Fuel,
   Info,
   LogOut,
+  Menu,
   Plus,
   Sparkles,
   Upload,
@@ -54,6 +55,8 @@ import {
 } from "./shared/carData";
 
 type AppTab = "overview" | "fuel" | "wash" | "vehicles" | "sync";
+type FuelSubTab = "analytics" | "record" | "history";
+type WashSubTab = "record" | "warehouse" | "history";
 
 function loadStore(): Store {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -93,6 +96,7 @@ export function App() {
   const [store, setStore] = useState<Store>(() => loadStore());
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<AppTab>("overview");
+  const [navCollapsed, setNavCollapsed] = useState(false);
   const currentUser = store.users.find((user) => user.id === store.currentUserId);
 
   function commit(next: Store) {
@@ -246,6 +250,24 @@ export function App() {
     });
   }
 
+  function updateWashProduct(productId: string, product: Omit<WashProduct, "id" | "userId">) {
+    if (!currentUser) return;
+    commit({
+      ...store,
+      washProducts: store.washProducts.map((currentProduct) =>
+        currentProduct.id === productId && currentProduct.userId === currentUser.id
+          ? withUpdatedTimestamp({
+              ...product,
+              id: currentProduct.id,
+              userId: currentProduct.userId,
+              createdAt: currentProduct.createdAt,
+              deletedAt: currentProduct.deletedAt,
+            })
+          : currentProduct,
+      ),
+    });
+  }
+
   function importStore(importedStore: Store) {
     const next = mergeStores(store, importedStore);
     commit(next);
@@ -279,52 +301,34 @@ export function App() {
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">Car Utils</p>
-          <h1>车辆生活账本</h1>
-        </div>
-        <div className="user-chip">
-          <UserRound size={18} />
-          <span>{currentUser.name}</span>
-          <button className="icon-button" aria-label="退出登录" onClick={logout}>
-            <LogOut size={17} />
-          </button>
-        </div>
-      </header>
+    <main className={navCollapsed ? "app-shell nav-collapsed" : "app-shell"}>
+      <TabBar
+        activeTab={activeTab}
+        collapsed={navCollapsed}
+        onChange={setActiveTab}
+        onLogout={logout}
+        onToggle={() => setNavCollapsed((current) => !current)}
+        userName={currentUser.name}
+      />
 
       <section className="workspace">
-        <aside className="sidebar">
-          <div className="section-title">
-            <Car size={18} />
-            <span>我的车辆</span>
-          </div>
-          <div className="vehicle-list">
-            {userVehicles.map((vehicle) => (
-              <button
-                className={vehicle.id === activeVehicleId ? "vehicle-card active" : "vehicle-card"}
-                key={vehicle.id}
-                onClick={() => setSelectedVehicleId(vehicle.id)}
-              >
-                <strong>{vehicle.nickname}</strong>
-                <span>
-                  {vehicle.brand} {vehicle.model}
-                </span>
-                <small>{vehicle.energyType}</small>
-              </button>
-            ))}
-            {userVehicles.length === 0 && <p className="empty">还没有车辆，先添加一台开始记录。</p>}
-          </div>
-          <button className="secondary-button full-width" type="button" onClick={() => setActiveTab("vehicles")}>
-            管理车辆
-          </button>
-        </aside>
-
         <div className="content">
+          <header className="page-header">
+            <div>
+              <p className="eyebrow">Car Utils</p>
+              <h1>{getTabTitle(activeTab)}</h1>
+            </div>
+            <ActiveVehicleSwitcher
+              activeTab={activeTab}
+              activeVehicleId={activeVehicleId}
+              onManageVehicles={() => setActiveTab("vehicles")}
+              onSelect={setSelectedVehicleId}
+              vehicles={userVehicles}
+            />
+          </header>
+
           {activeVehicle || activeTab === "vehicles" || activeTab === "sync" ? (
             <>
-              <TabBar activeTab={activeTab} onChange={setActiveTab} />
               {activeTab === "overview" && activeVehicle && (
                 <>
                   <Dashboard vehicle={activeVehicle} fuelRecords={fuelRecords} washRecords={washRecords} />
@@ -343,32 +347,19 @@ export function App() {
                 />
               )}
               {activeTab === "wash" && activeVehicle && (
-                <section className="tab-layout">
-                  <div className="tab-stack">
-                    <WashForm
-                      onAdd={addWashRecord}
-                      onCreateProduct={addWashProduct}
-                      vehicle={activeVehicle}
-                      washProducts={washProducts}
-                    />
-                    <WashProductWarehouse
-                      onAdd={addWashProduct}
-                      onReplenish={addWashProductPurchase}
-                      washProducts={washProducts}
-                      washRecords={washRecords}
-                    />
-                  </div>
-                  <WashRecordsPanel
-                    deletedWashRecords={deletedWashRecords}
-                    limit={12}
-                    onDelete={deleteWashRecord}
-                    onCreateProduct={addWashProduct}
-                    onRestore={restoreWashRecord}
-                    onUpdate={updateWashRecord}
-                    washProducts={washProducts}
-                    washRecords={washRecords}
-                  />
-                </section>
+                <WashTab
+                  deletedWashRecords={deletedWashRecords}
+                  onAddWash={addWashRecord}
+                  onCreateProduct={addWashProduct}
+                  onDeleteWash={deleteWashRecord}
+                  onReplenishProduct={addWashProductPurchase}
+                  onRestoreWash={restoreWashRecord}
+                  onUpdateProduct={updateWashProduct}
+                  onUpdateWash={updateWashRecord}
+                  vehicle={activeVehicle}
+                  washProducts={washProducts}
+                  washRecords={washRecords}
+                />
               )}
               {activeTab === "vehicles" && (
                 <section className="tab-layout">
@@ -399,7 +390,32 @@ export function App() {
   );
 }
 
-function TabBar({ activeTab, onChange }: { activeTab: AppTab; onChange: (tab: AppTab) => void }) {
+function getTabTitle(tab: AppTab) {
+  const titles: Record<AppTab, string> = {
+    overview: "车辆概览",
+    fuel: "加油记录",
+    wash: "洗车护理",
+    vehicles: "车辆管理",
+    sync: "数据同步",
+  };
+  return titles[tab];
+}
+
+function TabBar({
+  activeTab,
+  collapsed,
+  onChange,
+  onLogout,
+  onToggle,
+  userName,
+}: {
+  activeTab: AppTab;
+  collapsed: boolean;
+  onChange: (tab: AppTab) => void;
+  onLogout: () => void;
+  onToggle: () => void;
+  userName: string;
+}) {
   const tabs: { id: AppTab; label: string; icon: React.ReactNode }[] = [
     { id: "overview", label: "概览", icon: <Car size={16} /> },
     { id: "fuel", label: "加油", icon: <Fuel size={16} /> },
@@ -409,19 +425,78 @@ function TabBar({ activeTab, onChange }: { activeTab: AppTab; onChange: (tab: Ap
   ];
 
   return (
-    <nav className="tabs" aria-label="功能导航">
-      {tabs.map((tab) => (
-        <button
-          className={activeTab === tab.id ? "tab active" : "tab"}
-          key={tab.id}
-          type="button"
-          onClick={() => onChange(tab.id)}
-        >
-          {tab.icon}
-          <span>{tab.label}</span>
+    <aside className={collapsed ? "app-nav collapsed" : "app-nav"}>
+      <div className="nav-top">
+        <button className="nav-toggle" type="button" aria-label={collapsed ? "展开导航" : "收起导航"} onClick={onToggle}>
+          <Menu size={19} />
         </button>
-      ))}
-    </nav>
+        {!collapsed && (
+          <div>
+            <p className="eyebrow">Car Utils</p>
+            <strong>车辆生活账本</strong>
+          </div>
+        )}
+      </div>
+      <nav className="nav-tabs" aria-label="功能导航">
+        {tabs.map((tab) => (
+          <button
+            aria-label={tab.label}
+            className={activeTab === tab.id ? "nav-tab active" : "nav-tab"}
+            key={tab.id}
+            title={collapsed ? tab.label : undefined}
+            type="button"
+            onClick={() => onChange(tab.id)}
+          >
+            {tab.icon}
+            {!collapsed && <span>{tab.label}</span>}
+          </button>
+        ))}
+      </nav>
+      <div className="nav-user">
+        <div className="nav-user-chip" title={userName}>
+          <UserRound size={18} />
+          {!collapsed && <span>{userName}</span>}
+        </div>
+        <button className="nav-tab" title={collapsed ? "退出登录" : undefined} type="button" onClick={onLogout}>
+          <LogOut size={16} />
+          {!collapsed && <span>退出登录</span>}
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function ActiveVehicleSwitcher({
+  activeTab,
+  activeVehicleId,
+  onManageVehicles,
+  onSelect,
+  vehicles,
+}: {
+  activeTab: AppTab;
+  activeVehicleId: string;
+  onManageVehicles: () => void;
+  onSelect: (id: string) => void;
+  vehicles: Vehicle[];
+}) {
+  if (activeTab === "vehicles" || activeTab === "sync") return null;
+
+  return (
+    <div className="vehicle-switcher">
+      <label>
+        当前车辆
+        <select value={activeVehicleId} onChange={(event) => onSelect(event.target.value)}>
+          {vehicles.map((vehicle) => (
+            <option key={vehicle.id} value={vehicle.id}>
+              {vehicle.nickname} · {vehicle.brand} {vehicle.model}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button className="secondary-button" type="button" onClick={onManageVehicles}>
+        管理车辆
+      </button>
+    </div>
   );
 }
 
@@ -442,6 +517,7 @@ function FuelTab({
   onDelete: (recordId: string) => void;
   onRestore: (recordId: string) => void;
 }) {
+  const [activeFuelTab, setActiveFuelTab] = useState<FuelSubTab>("record");
   const [dateFilter, setDateFilter] = useState<FuelDateFilter>("all");
   const [query, setQuery] = useState("");
   const filteredFuelRecords = useMemo(
@@ -461,17 +537,39 @@ function FuelTab({
 
   return (
     <section className="tab-stack">
-      <FuelFilters
-        dateFilter={dateFilter}
-        onDateFilterChange={setDateFilter}
-        query={query}
-        onQueryChange={setQuery}
-        visibleCount={filteredFuelRecords.length}
-        totalCount={fuelRecords.length}
+      <SubTabBar
+        activeTab={activeFuelTab}
+        tabs={[
+          { id: "record", label: "记录加油" },
+          { id: "analytics", label: "数据分析" },
+          { id: "history", label: "历史记录" },
+        ]}
+        onChange={(tab) => setActiveFuelTab(tab as FuelSubTab)}
       />
-      <FuelInsights vehicle={vehicle} fuelRecords={filteredFuelRecords} />
-      <div className="tab-layout">
-        <FuelForm vehicle={vehicle} onAdd={onAdd} />
+      {activeFuelTab === "record" && <FuelForm vehicle={vehicle} onAdd={onAdd} />}
+      {activeFuelTab === "analytics" && (
+        <>
+          <FuelFilters
+            dateFilter={dateFilter}
+            onDateFilterChange={setDateFilter}
+            query={query}
+            onQueryChange={setQuery}
+            visibleCount={filteredFuelRecords.length}
+            totalCount={fuelRecords.length}
+          />
+          <FuelInsights vehicle={vehicle} fuelRecords={filteredFuelRecords} />
+        </>
+      )}
+      {activeFuelTab === "history" && (
+        <>
+          <FuelFilters
+            dateFilter={dateFilter}
+            onDateFilterChange={setDateFilter}
+            query={query}
+            onQueryChange={setQuery}
+            visibleCount={filteredFuelRecords.length}
+            totalCount={fuelRecords.length}
+          />
         <FuelRecordsPanel
           emptyText="没有符合筛选条件的加油记录"
           deletedFuelRecords={filteredDeletedFuelRecords}
@@ -481,8 +579,36 @@ function FuelTab({
           onRestore={onRestore}
           onUpdate={onUpdate}
         />
-      </div>
+        </>
+      )}
     </section>
+  );
+}
+
+function SubTabBar({
+  activeTab,
+  onChange,
+  tabs,
+}: {
+  activeTab: string;
+  onChange: (tab: string) => void;
+  tabs: { id: string; label: string }[];
+}) {
+  return (
+    <div className="module-tabs" role="tablist">
+      {tabs.map((tab) => (
+        <button
+          aria-selected={activeTab === tab.id}
+          className={activeTab === tab.id ? "module-tab active" : "module-tab"}
+          key={tab.id}
+          role="tab"
+          type="button"
+          onClick={() => onChange(tab.id)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -1057,6 +1183,13 @@ type WashProductDraft = {
   note: string;
 };
 
+type WashProductEditDraft = {
+  name: string;
+  brand: string;
+  category: string;
+  note: string;
+};
+
 const washTypeOptions: { id: WashType; label: string }[] = [
   { id: "diy", label: "DIY 洗车" },
   { id: "shop_basic", label: "店内普洗" },
@@ -1569,6 +1702,77 @@ function FuelForm({
         保存加油记录 · {money(paidAmount || 0)}
       </button>
     </form>
+  );
+}
+
+function WashTab({
+  deletedWashRecords,
+  onAddWash,
+  onCreateProduct,
+  onDeleteWash,
+  onReplenishProduct,
+  onRestoreWash,
+  onUpdateProduct,
+  onUpdateWash,
+  vehicle,
+  washProducts,
+  washRecords,
+}: {
+  deletedWashRecords: WashRecord[];
+  onAddWash: (record: Omit<WashRecord, "id" | "userId">) => void;
+  onCreateProduct: (product: Omit<WashProduct, "id" | "userId">) => WashProduct | undefined;
+  onDeleteWash: (recordId: string) => void;
+  onReplenishProduct: (productId: string, purchase: WashProductPurchase) => void;
+  onRestoreWash: (recordId: string) => void;
+  onUpdateProduct: (productId: string, product: Omit<WashProduct, "id" | "userId">) => void;
+  onUpdateWash: (recordId: string, record: Omit<WashRecord, "id" | "userId">) => void;
+  vehicle: Vehicle;
+  washProducts: WashProduct[];
+  washRecords: WashRecord[];
+}) {
+  const [activeWashTab, setActiveWashTab] = useState<WashSubTab>("record");
+
+  return (
+    <section className="tab-stack">
+      <SubTabBar
+        activeTab={activeWashTab}
+        tabs={[
+          { id: "record", label: "记录洗车" },
+          { id: "warehouse", label: "耗材仓库" },
+          { id: "history", label: "历史记录" },
+        ]}
+        onChange={(tab) => setActiveWashTab(tab as WashSubTab)}
+      />
+      {activeWashTab === "record" && (
+        <WashForm
+          onAdd={onAddWash}
+          onCreateProduct={onCreateProduct}
+          vehicle={vehicle}
+          washProducts={washProducts}
+        />
+      )}
+      {activeWashTab === "warehouse" && (
+        <WashProductWarehouse
+          onAdd={onCreateProduct}
+          onReplenish={onReplenishProduct}
+          onUpdate={onUpdateProduct}
+          washProducts={washProducts}
+          washRecords={washRecords}
+        />
+      )}
+      {activeWashTab === "history" && (
+        <WashRecordsPanel
+          deletedWashRecords={deletedWashRecords}
+          limit={50}
+          onDelete={onDeleteWash}
+          onCreateProduct={onCreateProduct}
+          onRestore={onRestoreWash}
+          onUpdate={onUpdateWash}
+          washProducts={washProducts}
+          washRecords={washRecords}
+        />
+      )}
+    </section>
   );
 }
 
@@ -2172,18 +2376,31 @@ function buildWashProductPurchase(draft: WashProductDraft): WashProductPurchase 
   };
 }
 
+function createWashProductEditDraft(product: WashProduct): WashProductEditDraft {
+  return {
+    name: product.name,
+    brand: product.brand ?? "",
+    category: product.category,
+    note: product.note ?? "",
+  };
+}
+
 function WashProductWarehouse({
   onAdd,
   onReplenish,
+  onUpdate,
   washProducts,
   washRecords,
 }: {
   onAdd: (product: Omit<WashProduct, "id" | "userId">) => WashProduct | undefined;
   onReplenish: (productId: string, purchase: WashProductPurchase) => void;
+  onUpdate: (productId: string, product: Omit<WashProduct, "id" | "userId">) => void;
   washProducts: WashProduct[];
   washRecords: WashRecord[];
 }) {
   const [draft, setDraft] = useState<WashProductDraft>(() => createEmptyWashProductWarehouseDraft());
+  const [editDraft, setEditDraft] = useState<WashProductEditDraft | null>(null);
+  const [editingProductId, setEditingProductId] = useState("");
   const [replenishProductId, setReplenishProductId] = useState("");
 
   function submit(event: FormEvent) {
@@ -2206,6 +2423,30 @@ function WashProductWarehouse({
 
     setDraft(createEmptyWashProductWarehouseDraft());
     setReplenishProductId("");
+  }
+
+  function startEditing(product: WashProduct) {
+    setEditingProductId(product.id);
+    setEditDraft(createWashProductEditDraft(product));
+  }
+
+  function saveEditing(event: FormEvent) {
+    event.preventDefault();
+    if (!editDraft || !editingProductId || !editDraft.name.trim()) return;
+
+    const product = washProducts.find((item) => item.id === editingProductId);
+    if (!product) return;
+
+    onUpdate(product.id, {
+      type: "washProduct",
+      name: editDraft.name.trim(),
+      brand: editDraft.brand.trim() || undefined,
+      category: editDraft.category,
+      purchases: product.purchases,
+      note: editDraft.note.trim() || undefined,
+    });
+    setEditingProductId("");
+    setEditDraft(null);
   }
 
   function selectExistingProduct(productId: string) {
@@ -2324,21 +2565,96 @@ function WashProductWarehouse({
         ) : (
           washProducts.map((product) => {
             const stats = getWashProductStats(product, washRecords);
+            const latestPurchase = product.purchases.at(-1);
             return (
               <div className="warehouse-row" key={product.id}>
-                <div>
-                  <strong>{product.name}</strong>
-                  <span>
-                    {product.brand ? `${product.brand} · ` : ""}
-                    {product.category} · {product.purchases.length} 次购买
-                  </span>
-                </div>
-                <div>
-                  <strong>{number(stats.remaining, 1)} {stats.unit}</strong>
-                  <span>
-                    已用 {number(stats.used, 1)} {stats.unit} / 购入 {number(stats.purchased, 1)} {stats.unit}
-                  </span>
-                </div>
+                {editingProductId === product.id && editDraft ? (
+                  <form className="warehouse-edit-form" onSubmit={saveEditing}>
+                    <div className="two-cols">
+                      <label>
+                        名称
+                        <input
+                          value={editDraft.name}
+                          onChange={(event) => setEditDraft({ ...editDraft, name: event.target.value })}
+                        />
+                      </label>
+                      <label>
+                        品牌
+                        <input
+                          value={editDraft.brand}
+                          onChange={(event) => setEditDraft({ ...editDraft, brand: event.target.value })}
+                        />
+                      </label>
+                    </div>
+                    <div className="two-cols">
+                      <label>
+                        类型
+                        <select
+                          value={editDraft.category}
+                          onChange={(event) => setEditDraft({ ...editDraft, category: event.target.value })}
+                        >
+                          {productCategoryOptions.map((category) => (
+                            <option key={category}>{category}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        备注
+                        <input
+                          value={editDraft.note}
+                          onChange={(event) => setEditDraft({ ...editDraft, note: event.target.value })}
+                        />
+                      </label>
+                    </div>
+                    <div className="form-actions">
+                      <button className="secondary-button" type="submit">
+                        保存
+                      </button>
+                      <button
+                        className="ghost-button"
+                        type="button"
+                        onClick={() => {
+                          setEditingProductId("");
+                          setEditDraft(null);
+                        }}
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <div>
+                      <strong>{product.name}</strong>
+                      <span>
+                        {product.brand ? `${product.brand} · ` : ""}
+                        {product.category} · {product.purchases.length} 次购买
+                      </span>
+                      {latestPurchase && (
+                        <span>
+                          最近：{latestPurchase.date} · {money(latestPurchase.purchasePrice)} / {latestPurchase.capacity}
+                          {latestPurchase.capacityUnit}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <strong>
+                        {number(stats.remaining, 1)} {stats.unit}
+                      </strong>
+                      <span>
+                        已用 {number(stats.used, 1)} {stats.unit} / 购入 {number(stats.purchased, 1)} {stats.unit}
+                      </span>
+                      <div className="warehouse-row-actions">
+                        <button className="text-button" type="button" onClick={() => startEditing(product)}>
+                          编辑
+                        </button>
+                        <button className="text-button" type="button" onClick={() => selectExistingProduct(product.id)}>
+                          补货
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             );
           })
