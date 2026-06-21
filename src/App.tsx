@@ -21,6 +21,7 @@ import {
   countStoreItems,
   createStoreBackup,
   emptyStore,
+  filterActive,
   fuelGrades,
   matchesFuelDateFilter,
   matchesFuelQuery,
@@ -48,13 +49,15 @@ type AppTab = "overview" | "fuel" | "wash" | "vehicles" | "sync";
 
 function loadStore(): Store {
   const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return emptyStore;
+  if (!raw) return normalizeStore(emptyStore);
 
   try {
-    return normalizeStore(JSON.parse(raw));
+    const store = normalizeStore(JSON.parse(raw));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    return store;
   } catch {
     localStorage.removeItem(STORAGE_KEY);
-    return emptyStore;
+    return normalizeStore(emptyStore);
   }
 }
 
@@ -169,13 +172,13 @@ export function App() {
     return <LoginScreen onLogin={login} />;
   }
 
-  const userVehicles = store.vehicles.filter((vehicle) => vehicle.userId === currentUser.id);
+  const userVehicles = filterActive(store.vehicles).filter((vehicle) => vehicle.userId === currentUser.id);
   const activeVehicleId = selectedVehicleId || userVehicles[0]?.id || "";
   const activeVehicle = userVehicles.find((vehicle) => vehicle.id === activeVehicleId);
-  const fuelRecords = store.fuelRecords
+  const fuelRecords = filterActive(store.fuelRecords)
     .filter((record) => record.userId === currentUser.id && record.vehicleId === activeVehicleId)
     .sort((a, b) => b.date.localeCompare(a.date));
-  const washRecords = store.washRecords
+  const washRecords = filterActive(store.washRecords)
     .filter((record) => record.userId === currentUser.id && record.vehicleId === activeVehicleId)
     .sort((a, b) => b.date.localeCompare(a.date));
 
@@ -493,6 +496,7 @@ function DataSyncPanel({
             <DataCount label="车辆" value={counts.vehicles} />
             <DataCount label="加油" value={counts.fuelRecords} />
             <DataCount label="洗车" value={counts.washRecords} />
+            <DataCount label="费用" value={counts.expenseRecords} />
           </div>
           <div className="sync-actions">
             <button className="primary-button icon-text-button" type="button" onClick={exportData}>
@@ -551,7 +555,7 @@ function DataCount({ label, value }: { label: string; value: number }) {
 }
 
 function formatCounts(counts: StoreCounts) {
-  return `${counts.users} 个账户、${counts.vehicles} 台车、${counts.fuelRecords} 条加油、${counts.washRecords} 条洗车`;
+  return `${counts.users} 个账户、${counts.vehicles} 台车、${counts.fuelRecords} 条加油、${counts.washRecords} 条洗车、${counts.expenseRecords} 条费用`;
 }
 
 function LoginScreen({ onLogin }: { onLogin: (name: string, email: string) => void }) {

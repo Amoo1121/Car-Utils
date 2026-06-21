@@ -1,18 +1,39 @@
 export type EnergyType = "汽油" | "柴油" | "混动" | "纯电" | "增程";
 
-export type EntityTimestamps = {
-  createdAt?: string;
-  updatedAt?: string;
+export type EntitySource = "web" | "miniapp" | "import" | "cloud" | "migration";
+
+export type EntityType = "user" | "vehicle" | "fuel" | "wash" | "expense";
+
+export type BaseEntity = {
+  id: string;
+  createdAt?: number;
+  updatedAt?: number;
+  deletedAt?: number | null;
+  deviceId?: string;
+  source?: EntitySource;
+  schemaVersion?: number;
 };
 
-export type User = EntityTimestamps & {
-  id: string;
+export type UserSettings = {
+  defaultVehicleId?: string;
+  distanceUnit: "km" | "mile";
+  currency: "CNY" | "USD";
+  fuelVolumeUnit: "L" | "gal";
+  theme?: "light" | "dark" | "system";
+};
+
+export type User = BaseEntity & {
+  type?: "user";
   name: string;
   email: string;
+  openId?: string;
+  unionId?: string;
+  avatarUrl?: string;
+  settings?: UserSettings;
 };
 
-export type Vehicle = EntityTimestamps & {
-  id: string;
+export type Vehicle = BaseEntity & {
+  type?: "vehicle";
   userId: string;
   nickname: string;
   brand: string;
@@ -22,10 +43,19 @@ export type Vehicle = EntityTimestamps & {
   energyType: EnergyType;
   tankSize?: number;
   batterySize?: number;
+  vin?: string;
+  currentOdometer?: number;
+  note?: string;
+  presetId?: string;
+  isArchived?: boolean;
 };
 
-export type FuelRecord = EntityTimestamps & {
-  id: string;
+export type PaymentMethod = "wechat" | "alipay" | "cash" | "credit_card" | "fuel_card" | "other";
+
+export type RoadCondition = "city" | "highway" | "mixed" | "unknown";
+
+export type FuelRecord = BaseEntity & {
+  type?: "fuel";
   userId: string;
   vehicleId: string;
   date: string;
@@ -39,10 +69,40 @@ export type FuelRecord = EntityTimestamps & {
   totalCost: number;
   station: string;
   fullTank: boolean;
+  paymentMethod?: PaymentMethod;
+  originalAmount?: number;
+  discountAmount?: number;
+  couponAmount?: number;
+  memberDiscountAmount?: number;
+  roadCondition?: RoadCondition;
+  acUsageLevel?: 0 | 1 | 2 | 3;
+  loadLevel?: 0 | 1 | 2 | 3;
+  tirePressureKpa?: number;
+  weather?: string;
+  temperatureC?: number;
+  receiptImageIds?: string[];
+  note?: string;
 };
 
-export type WashRecord = EntityTimestamps & {
-  id: string;
+export type WashType =
+  | "diy"
+  | "machine"
+  | "detailing"
+  | "wax"
+  | "interior"
+  | "glass_oil_film"
+  | "wheel_cleaning"
+  | "other";
+
+export type WashProductUsage = {
+  name: string;
+  category?: string;
+  amount?: string;
+  cost?: number;
+};
+
+export type WashRecord = BaseEntity & {
+  type?: "wash";
   userId: string;
   vehicleId: string;
   date: string;
@@ -51,6 +111,68 @@ export type WashRecord = EntityTimestamps & {
   minutes: number;
   cost: number;
   notes: string;
+  washType?: WashType;
+  waterElectricityCost?: number;
+  locationCost?: number;
+  products?: WashProductUsage[];
+  effectRating?: 1 | 2 | 3 | 4 | 5;
+  nextSuggestedDate?: string;
+  imageIds?: string[];
+};
+
+export type ExpenseCategory =
+  | "maintenance"
+  | "repair"
+  | "insurance"
+  | "inspection"
+  | "ticket"
+  | "parking"
+  | "etc"
+  | "tire"
+  | "battery"
+  | "wiper"
+  | "washer_fluid"
+  | "accessory"
+  | "other";
+
+export type ExpenseRecord = BaseEntity & {
+  type?: "expense";
+  userId: string;
+  vehicleId: string;
+  date: string;
+  odometer?: number;
+  category: ExpenseCategory;
+  title: string;
+  amount: number;
+  vendor?: string;
+  paymentMethod?: PaymentMethod;
+  nextDueDate?: string;
+  nextDueOdometer?: number;
+  note?: string;
+  imageIds?: string[];
+};
+
+export type ChangeOperation = "create" | "update" | "delete";
+
+export type ChangeSet = BaseEntity & {
+  type?: "change";
+  userId: string;
+  entityType: EntityType;
+  entityId: string;
+  op: ChangeOperation;
+  payload?: unknown;
+  baseUpdatedAt?: number;
+  changedAt: number;
+  syncedAt?: number | null;
+};
+
+export type SyncState = {
+  lastPulledAt?: number;
+  lastPushedAt?: number;
+  lastSyncAt?: number;
+  pendingChanges: ChangeSet[];
+  cloudEnabled: boolean;
+  cloudUserId?: string;
 };
 
 export type Store = {
@@ -58,7 +180,11 @@ export type Store = {
   vehicles: Vehicle[];
   fuelRecords: FuelRecord[];
   washRecords: WashRecord[];
+  expenseRecords: ExpenseRecord[];
   currentUserId?: string;
+  deviceId?: string;
+  schemaVersion?: number;
+  syncState?: SyncState;
 };
 
 export type FuelDateFilter = "all" | "month" | "year";
@@ -68,21 +194,48 @@ export type StoreCounts = {
   vehicles: number;
   fuelRecords: number;
   washRecords: number;
+  expenseRecords: number;
 };
 
 export type CarUtilsBackup = {
   app: "car-utils";
   schemaVersion: number;
-  exportedAt: string;
+  exportedAt: number;
   store: Store;
 };
 
-type IdentifiedEntity = EntityTimestamps & {
+export type ImportOptions = {
+  strategy: "prefer_newer" | "prefer_local" | "prefer_imported" | "manual";
+  includeDeleted?: boolean;
+  dryRun?: boolean;
+};
+
+export type ExportOptions = {
+  scope: "all" | "current_user" | "current_vehicle";
+  userId?: string;
+  vehicleId?: string;
+  includeDeleted?: boolean;
+};
+
+export type ImportConflict = {
+  entityType: EntityType;
   id: string;
+  localUpdatedAt?: number;
+  incomingUpdatedAt?: number;
+  reason: "local_newer" | "incoming_newer" | "same_id_different_content";
+};
+
+export type ImportResult = {
+  added: number;
+  updated: number;
+  skipped: number;
+  conflicts: ImportConflict[];
+  previewOnly: boolean;
 };
 
 export const STORAGE_KEY = "car-utils-store-v1";
 export const DATA_SCHEMA_VERSION = 1;
+export const DEVICE_ID_STORAGE_KEY = "car-utils-device-id";
 
 export const vehiclePresets = [
   { brand: "Toyota", model: "Camry", energyType: "汽油" as EnergyType, tankSize: 60 },
@@ -99,19 +252,55 @@ export const emptyStore: Store = {
   vehicles: [],
   fuelRecords: [],
   washRecords: [],
+  expenseRecords: [],
+  schemaVersion: DATA_SCHEMA_VERSION,
+  syncState: {
+    pendingChanges: [],
+    cloudEnabled: false,
+  },
 };
 
 export function normalizeStore(value: unknown): Store {
-  if (!value || typeof value !== "object") return emptyStore;
+  return migrateData(value);
+}
 
-  const store = value as Partial<Store>;
+export function migrateData(raw: unknown): Store {
+  if (!raw || typeof raw !== "object") return createEmptyStore();
+
+  const store = raw as Partial<Store>;
+  const deviceId = typeof store.deviceId === "string" ? store.deviceId : getOrCreateDeviceId();
+  const migratedAt = Date.now();
+
+  const users = Array.isArray(store.users)
+    ? store.users.map((user) => migrateUser(user, deviceId, migratedAt))
+    : [];
+  const vehicles = Array.isArray(store.vehicles)
+    ? store.vehicles.map((vehicle) => migrateVehicle(vehicle, deviceId, migratedAt))
+    : [];
+  const fuelRecords = Array.isArray(store.fuelRecords)
+    ? store.fuelRecords.map((record) => migrateFuelRecord(record, deviceId, migratedAt))
+    : [];
+  const washRecords = Array.isArray(store.washRecords)
+    ? store.washRecords.map((record) => migrateWashRecord(record, deviceId, migratedAt))
+    : [];
+  const expenseRecords = Array.isArray(store.expenseRecords)
+    ? store.expenseRecords.map((record) => migrateExpenseRecord(record, deviceId, migratedAt))
+    : [];
+  const currentUserId =
+    typeof store.currentUserId === "string" && users.some((user) => user.id === store.currentUserId)
+      ? store.currentUserId
+      : users[0]?.id;
 
   return {
-    users: Array.isArray(store.users) ? store.users : [],
-    vehicles: Array.isArray(store.vehicles) ? store.vehicles : [],
-    fuelRecords: Array.isArray(store.fuelRecords) ? store.fuelRecords : [],
-    washRecords: Array.isArray(store.washRecords) ? store.washRecords : [],
-    currentUserId: typeof store.currentUserId === "string" ? store.currentUserId : undefined,
+    users,
+    vehicles,
+    fuelRecords,
+    washRecords,
+    expenseRecords,
+    currentUserId,
+    deviceId,
+    schemaVersion: DATA_SCHEMA_VERSION,
+    syncState: migrateSyncState(store.syncState, deviceId, migratedAt),
   };
 }
 
@@ -119,7 +308,7 @@ export function createStoreBackup(store: Store): CarUtilsBackup {
   return {
     app: "car-utils",
     schemaVersion: DATA_SCHEMA_VERSION,
-    exportedAt: new Date().toISOString(),
+    exportedAt: Date.now(),
     store: normalizeStore(store),
   };
 }
@@ -152,6 +341,7 @@ export function countStoreItems(store: Store): StoreCounts {
     vehicles: store.vehicles.length,
     fuelRecords: store.fuelRecords.length,
     washRecords: store.washRecords.length,
+    expenseRecords: store.expenseRecords.length,
   };
 }
 
@@ -166,16 +356,57 @@ export function mergeStores(localStore: Store, incomingStore: Store): Store {
     vehicles: mergeEntities(local.vehicles, incoming.vehicles),
     fuelRecords: mergeEntities(local.fuelRecords, incoming.fuelRecords),
     washRecords: mergeEntities(local.washRecords, incoming.washRecords),
+    expenseRecords: mergeEntities(local.expenseRecords, incoming.expenseRecords),
     currentUserId: currentUserId && users.some((user) => user.id === currentUserId) ? currentUserId : users[0]?.id,
+    deviceId: local.deviceId ?? incoming.deviceId ?? getOrCreateDeviceId(),
+    schemaVersion: DATA_SCHEMA_VERSION,
+    syncState: local.syncState ?? incoming.syncState ?? createEmptyStore().syncState,
   };
 }
 
-export function withCreatedTimestamps<T extends object>(entity: T, timestamp = new Date().toISOString()) {
-  return { ...entity, createdAt: timestamp, updatedAt: timestamp };
+export function withCreatedTimestamps<T extends object>(
+  entity: T,
+  timestamp = Date.now(),
+  source: EntitySource = "web",
+) {
+  return {
+    ...entity,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    deletedAt: null,
+    deviceId: getOrCreateDeviceId(),
+    source,
+    schemaVersion: DATA_SCHEMA_VERSION,
+  };
 }
 
-export function withUpdatedTimestamp<T extends object>(entity: T, timestamp = new Date().toISOString()) {
-  return { ...entity, updatedAt: timestamp };
+export function withUpdatedTimestamp<T extends object>(entity: T, timestamp = Date.now()) {
+  return {
+    ...entity,
+    updatedAt: timestamp,
+    deviceId: getOrCreateDeviceId(),
+    schemaVersion: DATA_SCHEMA_VERSION,
+  };
+}
+
+export function isDeleted(entity: BaseEntity) {
+  return typeof entity.deletedAt === "number" && entity.deletedAt > 0;
+}
+
+export function filterActive<T extends BaseEntity>(items: T[]) {
+  return items.filter((item) => !isDeleted(item));
+}
+
+export function filterDeleted<T extends BaseEntity>(items: T[]) {
+  return items.filter(isDeleted);
+}
+
+export function softDeleteEntity<T extends BaseEntity>(entity: T, timestamp = Date.now()) {
+  return withUpdatedTimestamp({ ...entity, deletedAt: timestamp }, timestamp);
+}
+
+export function restoreEntity<T extends BaseEntity>(entity: T, timestamp = Date.now()) {
+  return withUpdatedTimestamp({ ...entity, deletedAt: null }, timestamp);
 }
 
 export function today() {
@@ -243,7 +474,125 @@ export function matchesFuelQuery(record: FuelRecord, query: string) {
   return fuzzyMatch(haystack, query);
 }
 
-function mergeEntities<T extends IdentifiedEntity>(localItems: T[], incomingItems: T[]) {
+function createEmptyStore(): Store {
+  return {
+    ...emptyStore,
+    deviceId: getOrCreateDeviceId(),
+    syncState: {
+      pendingChanges: [],
+      cloudEnabled: false,
+    },
+  };
+}
+
+function migrateUser(value: User, deviceId: string, fallbackTime: number): User {
+  return {
+    ...value,
+    type: "user",
+    name: value.name || value.email?.split("@")[0] || "车主",
+    email: value.email || "",
+    settings: value.settings ?? {
+      distanceUnit: "km",
+      currency: "CNY",
+      fuelVolumeUnit: "L",
+    },
+    ...migrateEntityMetadata(value, deviceId, fallbackTime),
+  };
+}
+
+function migrateVehicle(value: Vehicle, deviceId: string, fallbackTime: number): Vehicle {
+  return {
+    ...value,
+    type: "vehicle",
+    nickname: value.nickname || value.model || "未命名车辆",
+    brand: value.brand || "",
+    model: value.model || "",
+    year: value.year || "",
+    plate: value.plate || "",
+    energyType: value.energyType || "汽油",
+    ...migrateEntityMetadata(value, deviceId, fallbackTime),
+  };
+}
+
+function migrateFuelRecord(value: FuelRecord, deviceId: string, fallbackTime: number): FuelRecord {
+  const volume = normalizeNumber(value.volume, 0);
+  const pricePerUnit = normalizeNumber(value.pricePerUnit, 0);
+
+  return {
+    ...value,
+    type: "fuel",
+    date: value.date || today(),
+    volume,
+    pricePerUnit,
+    paidAmount: value.paidAmount == null ? undefined : normalizeNumber(value.paidAmount, 0),
+    totalCost: normalizeNumber(value.totalCost, volume * pricePerUnit),
+    station: value.station || "",
+    fullTank: Boolean(value.fullTank),
+    ...migrateEntityMetadata(value, deviceId, fallbackTime),
+  };
+}
+
+function migrateWashRecord(value: WashRecord, deviceId: string, fallbackTime: number): WashRecord {
+  return {
+    ...value,
+    type: "wash",
+    date: value.date || today(),
+    odometer: normalizeNumber(value.odometer, 0),
+    items: Array.isArray(value.items) ? value.items : [],
+    minutes: normalizeNumber(value.minutes, 0),
+    cost: normalizeNumber(value.cost, 0),
+    notes: value.notes || "",
+    washType: value.washType ?? "diy",
+    ...migrateEntityMetadata(value, deviceId, fallbackTime),
+  };
+}
+
+function migrateExpenseRecord(value: ExpenseRecord, deviceId: string, fallbackTime: number): ExpenseRecord {
+  return {
+    ...value,
+    type: "expense",
+    date: value.date || today(),
+    category: value.category || "other",
+    title: value.title || "车辆费用",
+    amount: normalizeNumber(value.amount, 0),
+    ...migrateEntityMetadata(value, deviceId, fallbackTime),
+  };
+}
+
+function migrateSyncState(value: SyncState | undefined, deviceId: string, fallbackTime: number): SyncState {
+  return {
+    lastPulledAt: normalizeOptionalTime(value?.lastPulledAt),
+    lastPushedAt: normalizeOptionalTime(value?.lastPushedAt),
+    lastSyncAt: normalizeOptionalTime(value?.lastSyncAt),
+    pendingChanges: Array.isArray(value?.pendingChanges)
+      ? value.pendingChanges.map((change) => ({
+          ...change,
+          changedAt: normalizeTime(change.changedAt, fallbackTime),
+          syncedAt: change.syncedAt == null ? null : normalizeTime(change.syncedAt, fallbackTime),
+          ...migrateEntityMetadata(change, deviceId, fallbackTime),
+        }))
+      : [],
+    cloudEnabled: Boolean(value?.cloudEnabled),
+    cloudUserId: value?.cloudUserId,
+  };
+}
+
+function migrateEntityMetadata<T extends BaseEntity>(entity: T, deviceId: string, fallbackTime: number): BaseEntity {
+  const createdAt = normalizeTime(entity.createdAt, fallbackTime);
+  const updatedAt = normalizeTime(entity.updatedAt, createdAt);
+
+  return {
+    id: entity.id || makeFallbackId("entity"),
+    createdAt,
+    updatedAt,
+    deletedAt: entity.deletedAt == null ? null : normalizeTime(entity.deletedAt, updatedAt),
+    deviceId: entity.deviceId || deviceId,
+    source: entity.source || "migration",
+    schemaVersion: DATA_SCHEMA_VERSION,
+  };
+}
+
+function mergeEntities<T extends BaseEntity>(localItems: T[], incomingItems: T[]) {
   const merged = new Map<string, T>();
 
   localItems.forEach((item) => {
@@ -262,8 +611,49 @@ function mergeEntities<T extends IdentifiedEntity>(localItems: T[], incomingItem
   return [...merged.values()];
 }
 
-function getEntityTime(entity: EntityTimestamps) {
-  const value = entity.updatedAt ?? entity.createdAt;
-  const time = value ? Date.parse(value) : 0;
+function getEntityTime(entity: BaseEntity) {
+  const time = normalizeOptionalTime(entity.updatedAt ?? entity.createdAt) ?? 0;
   return Number.isFinite(time) ? time : 0;
+}
+
+function normalizeTime(value: unknown, fallback: number) {
+  return normalizeOptionalTime(value) ?? fallback;
+}
+
+function normalizeOptionalTime(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function normalizeNumber(value: unknown, fallback: number) {
+  const numberValue = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numberValue) ? numberValue : fallback;
+}
+
+function getOrCreateDeviceId() {
+  const fallbackId = makeFallbackId("web");
+
+  if (typeof localStorage === "undefined") return fallbackId;
+
+  try {
+    const existing = localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+    if (existing) return existing;
+
+    localStorage.setItem(DEVICE_ID_STORAGE_KEY, fallbackId);
+    return fallbackId;
+  } catch {
+    return fallbackId;
+  }
+}
+
+function makeFallbackId(prefix: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}_${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
