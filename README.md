@@ -15,6 +15,8 @@
 
 同步策略见 [docs/sync-strategy.md](docs/sync-strategy.md)。
 
+手机访问和 CloudBase 同步的完整操作步骤见 [docs/iphone-cloudbase-guide.md](docs/iphone-cloudbase-guide.md)。
+
 ## 运行
 
 ```bash
@@ -63,6 +65,21 @@ npm run build
 ```
 
 构建产物在 `dist/`，可以部署到 GitHub Pages、Vercel、Netlify 或任意静态文件服务。
+
+## 自动部署
+
+项目已配置 GitHub Pages 自动部署。推送到 `main` 后，GitHub Actions 会执行：
+
+```bash
+npm ci
+npm run build
+```
+
+然后把 `dist/` 发布到 GitHub Pages。默认访问地址为：
+
+```text
+https://amoo1121.github.io/Car-Utils/
+```
 
 ## iPhone / 移动端
 
