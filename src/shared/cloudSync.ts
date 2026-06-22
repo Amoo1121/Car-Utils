@@ -8,6 +8,7 @@ import {
 export const CLOUD_SYNC_CONFIG_KEY = "car-utils-cloud-sync-config-v1";
 
 const DEFAULT_COLLECTION_NAME = "car_utils_sync";
+const DEFAULT_CLOUDBASE_ENV_ID = "car-utils-sync-d8gc5l3xlb8350cdf";
 const CLOUD_DOCUMENT_VERSION = 1;
 const KDF_ITERATIONS = 120_000;
 
@@ -50,7 +51,7 @@ type CloudSyncDocument = {
 export function createDefaultCloudSyncConfig(): CloudSyncConfig {
   return {
     provider: "cloudbase",
-    envId: "",
+    envId: DEFAULT_CLOUDBASE_ENV_ID,
     region: "ap-shanghai",
     accessKey: "",
     collectionName: DEFAULT_COLLECTION_NAME,
@@ -150,8 +151,7 @@ async function createCloudBaseClient(config: CloudSyncConfig) {
   });
 
   if (!config.accessKey) {
-    const authFactory = app.auth;
-    const auth = typeof authFactory === "function" ? authFactory.call(app, { persistence: "local" }) : authFactory;
+    const auth = typeof app.auth === "function" ? app.auth({ persistence: "local" }) : app.auth;
     if (auth?.signInAnonymously) {
       try {
         let loginState = null;

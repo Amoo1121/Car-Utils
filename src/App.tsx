@@ -977,7 +977,7 @@ function DataSyncPanel({
               <input
                 value={cloudConfig.envId}
                 onChange={(event) => updateCloudConfig("envId", event.target.value)}
-                placeholder="例如 car-utils-1gxxxx"
+                placeholder="car-utils-sync-d8gc5l3xlb8350cdf"
               />
             </label>
             <label>
@@ -1037,19 +1037,19 @@ function DataSyncPanel({
           </div>
           <div className="sync-roadmap">
             <div>
-              <strong>1. 先部署成 HTTPS 网页</strong>
-              <span>出门使用不要依赖本机 LAN 地址；可以部署到 GitHub Pages、Vercel 或 Netlify。</span>
+              <strong>1. 使用 CloudBase 托管域名</strong>
+              <span>当前已部署到 CloudBase 静态网站托管，出门直接打开这个 HTTPS 地址。</span>
             </div>
             <div>
-              <strong>2. 配置 CloudBase 安全域名</strong>
-              <span>把你的 HTTPS 域名加入 CloudBase Web 安全域名白名单，否则 SDK 会拒绝访问。</span>
+              <strong>2. 首次确认访问</strong>
+              <span>默认测试域名会出现 CloudBase 风险提醒，点“确定访问”后进入应用。</span>
             </div>
             <div>
               <strong>3. 添加到主屏幕</strong>
               <span>在 iPhone Safari 打开部署地址，使用分享菜单添加到主屏幕，之后就能像 App 一样启动。</span>
             </div>
           </div>
-          <p className="sync-note">LAN 地址只适合本机开发；出门同步需要公网 HTTPS 地址和 CloudBase 环境。</p>
+          <p className="sync-note">LAN 地址只适合本机开发；日常出门请使用 CloudBase 托管域名。</p>
         </section>
       </div>
     </section>

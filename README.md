@@ -64,27 +64,27 @@ Network: http://192.168.x.x:5173/
 npm run build
 ```
 
-构建产物在 `dist/`，可以部署到 GitHub Pages、Vercel、Netlify 或任意静态文件服务。
+构建产物在 `dist/`。当前项目已部署到 CloudBase 静态网站托管。
 
 ## 自动部署
 
-项目已配置 GitHub Pages 自动部署。推送到 `main` 后，GitHub Actions 会执行：
-
-```bash
-npm ci
-npm run build
-```
-
-然后把 `dist/` 发布到 GitHub Pages。默认访问地址为：
+当前可用的线上地址：
 
 ```text
-https://amoo1121.github.io/Car-Utils/
+https://car-utils-sync-d8gc5l3xlb8350cdf-1446050640.tcloudbaseapp.com/
+```
+
+重新部署到 CloudBase：
+
+```bash
+npm run build
+npx --yes -p @cloudbase/cli tcb hosting deploy dist -e car-utils-sync-d8gc5l3xlb8350cdf
 ```
 
 ## iPhone / 移动端
 
 当前 Web 版已经加入 PWA manifest 和基础离线缓存。部署到 HTTPS 地址后，可以在 iPhone Safari 打开页面，通过分享菜单“添加到主屏幕”，日常使用会更接近独立 App。
 
-注意：云同步依赖公网 HTTPS 域名和 CloudBase 安全域名配置。更换手机、清理浏览器数据或切换浏览器前，建议仍定期在“同步”页面导出 JSON 备份。
+注意：出门同步请使用 CloudBase 静态托管 HTTPS 地址。更换手机、清理浏览器数据或切换浏览器前，建议仍定期在“同步”页面导出 JSON 备份。
 
 应用仍以浏览器 `localStorage` 作为本地优先缓存，CloudBase 是可选同步层。后续可以继续接入微信小程序登录、车型查询 API 和更细的云端权限规则。
