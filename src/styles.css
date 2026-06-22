@@ -1101,6 +1101,13 @@ select:focus {
   background: transparent;
 }
 
+.summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .summary-row span {
   color: #667166;
 }
@@ -1309,6 +1316,10 @@ select:focus {
 
   .summary-row {
     grid-template-columns: 1fr;
+  }
+
+  .summary-actions {
+    justify-content: flex-start;
   }
 
   .warehouse-row {

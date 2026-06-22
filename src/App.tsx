@@ -152,6 +152,56 @@ export function App() {
     setSelectedVehicleId(vehicleId);
   }
 
+  function archiveVehicle(vehicleId: string) {
+    if (!currentUser) return;
+    commit({
+      ...store,
+      vehicles: store.vehicles.map((vehicle) =>
+        vehicle.id === vehicleId && vehicle.userId === currentUser.id
+          ? withUpdatedTimestamp({ ...vehicle, isArchived: true })
+          : vehicle,
+      ),
+    });
+    if (selectedVehicleId === vehicleId) setSelectedVehicleId("");
+  }
+
+  function unarchiveVehicle(vehicleId: string) {
+    if (!currentUser) return;
+    commit({
+      ...store,
+      vehicles: store.vehicles.map((vehicle) =>
+        vehicle.id === vehicleId && vehicle.userId === currentUser.id
+          ? withUpdatedTimestamp({ ...vehicle, isArchived: false })
+          : vehicle,
+      ),
+    });
+    setSelectedVehicleId(vehicleId);
+  }
+
+  function deleteVehicle(vehicleId: string) {
+    if (!currentUser) return;
+    commit({
+      ...store,
+      vehicles: store.vehicles.map((vehicle) =>
+        vehicle.id === vehicleId && vehicle.userId === currentUser.id ? softDeleteEntity(vehicle) : vehicle,
+      ),
+    });
+    if (selectedVehicleId === vehicleId) setSelectedVehicleId("");
+  }
+
+  function restoreVehicle(vehicleId: string) {
+    if (!currentUser) return;
+    commit({
+      ...store,
+      vehicles: store.vehicles.map((vehicle) =>
+        vehicle.id === vehicleId && vehicle.userId === currentUser.id
+          ? restoreEntity({ ...vehicle, isArchived: false })
+          : vehicle,
+      ),
+    });
+    setSelectedVehicleId(vehicleId);
+  }
+
   function addFuelRecord(record: Omit<FuelRecord, "id" | "userId">) {
     if (!currentUser) return;
     commit({
@@ -321,16 +371,22 @@ export function App() {
   }
 
   const userVehicles = filterActive(store.vehicles).filter((vehicle) => vehicle.userId === currentUser.id);
-  const activeVehicleId = selectedVehicleId || userVehicles[0]?.id || "";
+  const activeUserVehicles = userVehicles.filter((vehicle) => !vehicle.isArchived);
+  const deletedUserVehicles = filterDeleted(store.vehicles)
+    .filter((vehicle) => vehicle.userId === currentUser.id)
+    .sort((a, b) => a.nickname.localeCompare(b.nickname));
+  const activeVehicleId = selectedVehicleId || activeUserVehicles[0]?.id || userVehicles[0]?.id || "";
   const activeVehicle = userVehicles.find((vehicle) => vehicle.id === activeVehicleId);
-  const fuelRecords = filterActive(store.fuelRecords)
-    .filter((record) => record.userId === currentUser.id && record.vehicleId === activeVehicleId)
+  const userFuelRecords = filterActive(store.fuelRecords).filter((record) => record.userId === currentUser.id);
+  const fuelRecords = userFuelRecords
+    .filter((record) => record.vehicleId === activeVehicleId)
     .sort((a, b) => b.date.localeCompare(a.date));
   const deletedFuelRecords = filterDeleted(store.fuelRecords)
     .filter((record) => record.userId === currentUser.id && record.vehicleId === activeVehicleId)
     .sort((a, b) => b.date.localeCompare(a.date));
-  const washRecords = filterActive(store.washRecords)
-    .filter((record) => record.userId === currentUser.id && record.vehicleId === activeVehicleId)
+  const userWashRecords = filterActive(store.washRecords).filter((record) => record.userId === currentUser.id);
+  const washRecords = userWashRecords
+    .filter((record) => record.vehicleId === activeVehicleId)
     .sort((a, b) => b.date.localeCompare(a.date));
   const deletedWashRecords = filterDeleted(store.washRecords)
     .filter((record) => record.userId === currentUser.id && record.vehicleId === activeVehicleId)
@@ -341,6 +397,10 @@ export function App() {
   const deletedWashProducts = filterDeleted(store.washProducts)
     .filter((product) => product.userId === currentUser.id)
     .sort((a, b) => a.name.localeCompare(b.name));
+  const vehicleSwitcherVehicles =
+    activeVehicle && activeVehicle.isArchived
+      ? [activeVehicle, ...activeUserVehicles.filter((vehicle) => vehicle.id !== activeVehicle.id)]
+      : activeUserVehicles;
 
   return (
     <main className={navCollapsed ? "app-shell nav-collapsed" : "app-shell"}>
@@ -365,7 +425,7 @@ export function App() {
               activeVehicleId={activeVehicleId}
               onManageVehicles={() => setActiveTab("vehicles")}
               onSelect={setSelectedVehicleId}
-              vehicles={userVehicles}
+              vehicles={vehicleSwitcherVehicles}
             />
           </header>
 
@@ -409,10 +469,17 @@ export function App() {
               {activeTab === "vehicles" && (
                 <VehicleManager
                   activeVehicleId={activeVehicleId}
+                  deletedVehicles={deletedUserVehicles}
+                  fuelRecords={userFuelRecords}
+                  onArchive={archiveVehicle}
                   onAdd={addVehicle}
+                  onDelete={deleteVehicle}
+                  onRestore={restoreVehicle}
                   onSelect={setSelectedVehicleId}
+                  onUnarchive={unarchiveVehicle}
                   onUpdate={updateVehicle}
                   vehicles={userVehicles}
+                  washRecords={userWashRecords}
                 />
               )}
               {activeTab === "sync" && <DataSyncPanel store={store} onImport={importStore} />}
@@ -528,6 +595,7 @@ function ActiveVehicleSwitcher({
   vehicles: Vehicle[];
 }) {
   if (activeTab === "vehicles" || activeTab === "sync") return null;
+  if (vehicles.length === 0) return null;
 
   return (
     <div className="vehicle-switcher">
@@ -951,23 +1019,60 @@ function createVehicleDraft(vehicle: Vehicle): VehicleDraft {
 
 function VehicleManager({
   activeVehicleId,
+  deletedVehicles,
+  fuelRecords,
   onAdd,
+  onArchive,
+  onDelete,
+  onRestore,
   onSelect,
+  onUnarchive,
   onUpdate,
   vehicles,
+  washRecords,
 }: {
   activeVehicleId: string;
+  deletedVehicles: Vehicle[];
+  fuelRecords: FuelRecord[];
   onAdd: (vehicle: VehicleDraft) => void;
+  onArchive: (id: string) => void;
+  onDelete: (id: string) => void;
+  onRestore: (id: string) => void;
   onSelect: (id: string) => void;
+  onUnarchive: (id: string) => void;
   onUpdate: (vehicleId: string, vehicle: VehicleDraft) => void;
   vehicles: Vehicle[];
+  washRecords: WashRecord[];
 }) {
   const [editingVehicleId, setEditingVehicleId] = useState("");
+  const [vehicleView, setVehicleView] = useState<"active" | "archived" | "deleted">("active");
   const editingVehicle = vehicles.find((vehicle) => vehicle.id === editingVehicleId);
+  const activeVehicles = vehicles.filter((vehicle) => !vehicle.isArchived);
+  const archivedVehicles = vehicles.filter((vehicle) => vehicle.isArchived);
+  const visibleVehicles =
+    vehicleView === "deleted" ? deletedVehicles : vehicleView === "archived" ? archivedVehicles : activeVehicles;
 
   function startEditing(vehicleId: string) {
     setEditingVehicleId(vehicleId);
     onSelect(vehicleId);
+  }
+
+  function countRecords(vehicleId: string) {
+    return {
+      fuel: fuelRecords.filter((record) => record.vehicleId === vehicleId).length,
+      wash: washRecords.filter((record) => record.vehicleId === vehicleId).length,
+    };
+  }
+
+  function confirmDelete(vehicle: Vehicle) {
+    const counts = countRecords(vehicle.id);
+    const confirmed = window.confirm(
+      `确定删除车辆“${vehicle.nickname}”吗？这台车下有 ${counts.fuel} 条加油记录、${counts.wash} 条洗车记录。删除后车辆默认隐藏，历史记录仍会保留，可以在“已删除”里恢复。`,
+    );
+    if (confirmed) {
+      if (editingVehicleId === vehicle.id) setEditingVehicleId("");
+      onDelete(vehicle.id);
+    }
   }
 
   return (
@@ -988,10 +1093,22 @@ function VehicleManager({
       />
       <VehicleSummary
         activeVehicleId={activeVehicleId}
+        activeCount={activeVehicles.length}
+        archivedCount={archivedVehicles.length}
+        deletedCount={deletedVehicles.length}
         editingVehicleId={editingVehicleId}
+        onArchive={onArchive}
+        onDelete={confirmDelete}
         onEdit={startEditing}
+        onRestore={onRestore}
         onSelect={onSelect}
-        vehicles={vehicles}
+        onUnarchive={onUnarchive}
+        onViewChange={(view) => {
+          setVehicleView(view);
+          setEditingVehicleId("");
+        }}
+        vehicleView={vehicleView}
+        vehicles={visibleVehicles}
       />
     </section>
   );
@@ -1187,21 +1304,64 @@ function VehicleForm({
 function VehicleSummary({
   vehicles,
   activeVehicleId,
+  activeCount,
+  archivedCount,
+  deletedCount,
   editingVehicleId,
+  onArchive,
+  onDelete,
   onEdit,
+  onRestore,
   onSelect,
+  onUnarchive,
+  onViewChange,
+  vehicleView,
 }: {
   vehicles: Vehicle[];
   activeVehicleId: string;
+  activeCount: number;
+  archivedCount: number;
+  deletedCount: number;
   editingVehicleId: string;
+  onArchive: (id: string) => void;
+  onDelete: (vehicle: Vehicle) => void;
   onEdit: (id: string) => void;
+  onRestore: (id: string) => void;
   onSelect: (id: string) => void;
+  onUnarchive: (id: string) => void;
+  onViewChange: (view: "active" | "archived" | "deleted") => void;
+  vehicleView: "active" | "archived" | "deleted";
 }) {
   return (
     <section className="panel">
-      <div className="section-title">
-        <Car size={17} />
-        <span>已绑定车辆</span>
+      <div className="panel-heading-row">
+        <div className="section-title">
+          <Car size={17} />
+          <span>已绑定车辆</span>
+        </div>
+        <div className="segmented-buttons compact" aria-label="车辆状态">
+          <button
+            className={vehicleView === "active" ? "filter-button active" : "filter-button"}
+            type="button"
+            onClick={() => onViewChange("active")}
+          >
+            正常 {activeCount}
+          </button>
+          <button
+            className={vehicleView === "archived" ? "filter-button active" : "filter-button"}
+            type="button"
+            onClick={() => onViewChange("archived")}
+          >
+            归档 {archivedCount}
+          </button>
+          <button
+            className={vehicleView === "deleted" ? "filter-button active" : "filter-button"}
+            type="button"
+            onClick={() => onViewChange("deleted")}
+          >
+            已删除 {deletedCount}
+          </button>
+        </div>
       </div>
       <div className="vehicle-summary-list">
         {vehicles.map((vehicle) => (
@@ -1225,12 +1385,42 @@ function VehicleSummary({
                 {vehicle.plate ? ` · ${vehicle.plate}` : ""}
               </span>
             </button>
-            <button className="text-button" type="button" onClick={() => onEdit(vehicle.id)}>
-              编辑
-            </button>
+            <div className="summary-actions">
+              {vehicleView === "deleted" ? (
+                <button className="text-button" type="button" onClick={() => onRestore(vehicle.id)}>
+                  恢复
+                </button>
+              ) : (
+                <>
+                  <button className="text-button" type="button" onClick={() => onEdit(vehicle.id)}>
+                    编辑
+                  </button>
+                  {vehicleView === "archived" ? (
+                    <button className="text-button" type="button" onClick={() => onUnarchive(vehicle.id)}>
+                      启用
+                    </button>
+                  ) : (
+                    <button className="text-button" type="button" onClick={() => onArchive(vehicle.id)}>
+                      归档
+                    </button>
+                  )}
+                  <button className="text-button danger" type="button" onClick={() => onDelete(vehicle)}>
+                    删除
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         ))}
-        {vehicles.length === 0 && <p className="empty">还没有绑定车辆。</p>}
+        {vehicles.length === 0 && (
+          <p className="empty">
+            {vehicleView === "deleted"
+              ? "暂无已删除车辆。"
+              : vehicleView === "archived"
+                ? "暂无归档车辆。"
+                : "还没有绑定车辆。"}
+          </p>
+        )}
       </div>
     </section>
   );
