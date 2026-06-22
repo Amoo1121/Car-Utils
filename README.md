@@ -21,6 +21,22 @@ npm run dev
 http://127.0.0.1:5173/
 ```
 
+## 手机访问本机开发服务
+
+让 Mac 和 iPhone 连接同一个 Wi-Fi，然后在 Mac 上运行：
+
+```bash
+npm run dev:lan
+```
+
+终端会输出类似下面的地址：
+
+```text
+Network: http://192.168.x.x:5173/
+```
+
+在 iPhone Safari 打开这个 `Network` 地址即可访问本机服务。如果 macOS 弹出防火墙提示，需要允许 Node.js 接受局域网连接。
+
 ## 构建
 
 ```bash
