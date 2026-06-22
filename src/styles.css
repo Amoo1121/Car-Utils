@@ -31,6 +31,11 @@ button {
   touch-action: manipulation;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
 .login-screen {
   min-height: 100vh;
   display: grid;
@@ -485,6 +490,20 @@ button {
 .sync-card {
   display: grid;
   gap: 14px;
+}
+
+.sync-status {
+  margin: 0;
+}
+
+.cloud-sync-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cloud-sync-form .wide-field {
+  grid-column: 1 / -1;
 }
 
 .data-count-grid {
@@ -1306,6 +1325,7 @@ select:focus {
   .records-grid,
   .tab-layout,
   .chart-grid,
+  .cloud-sync-form,
   .data-count-grid,
   .three-cols,
   .two-cols,

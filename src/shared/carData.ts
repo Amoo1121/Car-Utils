@@ -398,7 +398,7 @@ export function mergeStores(localStore: Store, incomingStore: Store): Store {
   const users = mergeEntities(local.users, incoming.users);
   const currentUserId = incoming.currentUserId ?? local.currentUserId;
 
-  return {
+  return normalizeStore({
     users,
     vehicles: mergeEntities(local.vehicles, incoming.vehicles),
     fuelRecords: mergeEntities(local.fuelRecords, incoming.fuelRecords),
@@ -409,7 +409,7 @@ export function mergeStores(localStore: Store, incomingStore: Store): Store {
     deviceId: local.deviceId ?? incoming.deviceId ?? getOrCreateDeviceId(),
     schemaVersion: DATA_SCHEMA_VERSION,
     syncState: local.syncState ?? incoming.syncState ?? createEmptyStore().syncState,
-  };
+  });
 }
 
 export function withCreatedTimestamps<T extends object>(
@@ -790,7 +790,7 @@ function getOrCreateDeviceId() {
 }
 
 function makeFallbackId(prefix: string) {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return `${prefix}_${crypto.randomUUID()}`;
   }
 

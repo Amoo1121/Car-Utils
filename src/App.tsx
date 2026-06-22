@@ -9,6 +9,7 @@ import {
   LogOut,
   Menu,
   Plus,
+  RefreshCw,
   Sparkles,
   Smartphone,
   Upload,
@@ -54,6 +55,13 @@ import {
   type WashProductPurchase,
   type WashType,
 } from "./shared/carData";
+import {
+  loadCloudSyncConfig,
+  saveCloudSyncConfig,
+  syncStoreWithCloud,
+  validateCloudSyncConfig,
+  type CloudSyncConfig,
+} from "./shared/cloudSync";
 
 type AppTab = "overview" | "fuel" | "wash" | "vehicles" | "sync";
 type FuelSubTab = "analytics" | "record" | "history";
@@ -78,7 +86,11 @@ function saveStore(store: Store) {
 }
 
 function makeId(prefix: string) {
-  return `${prefix}_${crypto.randomUUID()}`;
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}_${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
 
 function money(value: number) {
@@ -358,13 +370,17 @@ export function App() {
     });
   }
 
-  function importStore(importedStore: Store) {
-    const next = mergeStores(store, importedStore);
+  function replaceStore(nextStore: Store) {
+    const next = normalizeStore(nextStore);
     commit(next);
-    if (selectedVehicleId && !next.vehicles.some((vehicle) => vehicle.id === selectedVehicleId)) {
+    if (selectedVehicleId && !filterActive(next.vehicles).some((vehicle) => vehicle.id === selectedVehicleId)) {
       setSelectedVehicleId("");
     }
     return countStoreItems(next);
+  }
+
+  function importStore(importedStore: Store) {
+    return replaceStore(mergeStores(store, importedStore));
   }
 
   if (!currentUser) {
@@ -483,7 +499,7 @@ export function App() {
                   washRecords={userWashRecords}
                 />
               )}
-              {activeTab === "sync" && <DataSyncPanel store={store} onImport={importStore} />}
+              {activeTab === "sync" && <DataSyncPanel store={store} onImport={importStore} onReplace={replaceStore} />}
             </>
           ) : (
             <div className="blank-state">
@@ -802,15 +818,60 @@ function FuelFilters({
 function DataSyncPanel({
   store,
   onImport,
+  onReplace,
 }: {
   store: Store;
   onImport: (store: Store) => StoreCounts;
+  onReplace: (store: Store) => StoreCounts;
 }) {
   const counts = countStoreItems(store);
+  const [cloudConfig, setCloudConfig] = useState<CloudSyncConfig>(() => loadCloudSyncConfig());
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [status, setStatus] = useState<{ type: "idle" | "success" | "error"; text: string }>({
     type: "idle",
-    text: "云同步尚未连接。当前先用备份文件迁移已有数据，并为微信小程序同步保留同一份数据格式。",
+    text: "可以继续用 JSON 备份，也可以配置 CloudBase 云同步。云同步会先拉取云端并合并，再回写云端。",
   });
+
+  function updateCloudConfig<Key extends keyof CloudSyncConfig>(key: Key, value: CloudSyncConfig[Key]) {
+    setCloudConfig((current) => ({ ...current, [key]: value }));
+  }
+
+  function saveCloudConfigOnly() {
+    saveCloudSyncConfig(cloudConfig);
+    const validationError = validateCloudSyncConfig(cloudConfig);
+    setStatus({
+      type: validationError ? "idle" : "success",
+      text: validationError ? `配置已保存。${validationError}` : "CloudBase 配置已保存，可以在手机和电脑上使用同一套配置同步。",
+    });
+  }
+
+  async function runCloudSync() {
+    const validationError = validateCloudSyncConfig(cloudConfig);
+    if (validationError) {
+      setStatus({ type: "error", text: validationError });
+      return;
+    }
+
+    saveCloudSyncConfig(cloudConfig);
+    setIsCloudSyncing(true);
+    setStatus({ type: "idle", text: "正在连接 CloudBase，拉取云端数据并合并本机记录..." });
+
+    try {
+      const result = await syncStoreWithCloud(store, cloudConfig);
+      const mergedCounts = onReplace(result.mergedStore);
+      setStatus({
+        type: "success",
+        text: `${result.remoteFound ? "已与云端数据合并" : "已创建新的云端同步文档"}，本机现在共有 ${formatCounts(mergedCounts)}。同步文档：${result.documentId}`,
+      });
+    } catch (error) {
+      setStatus({
+        type: "error",
+        text: error instanceof Error ? error.message : "云同步失败，请检查 CloudBase 配置、域名白名单和网络状态。",
+      });
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  }
 
   function exportData() {
     const backup = createStoreBackup(store);
@@ -857,13 +918,17 @@ function DataSyncPanel({
       <section className="panel sync-hero">
         <div>
           <p className="eyebrow">Multi-device Sync</p>
-          <h2>先保护现有记录，再接微信小程序云同步</h2>
+          <h2>把本机账本同步到手机和云端</h2>
           <p>
-            现在网页端已经使用带版本号的数据包。你可以先导出当前记录，小程序端后续会读取同一份结构，再把数据上传到云端。
+            JSON 备份适合手动迁移；CloudBase 同步适合出门记录。同步前会先合并本机和云端数据，不会简单覆盖已有记录。
           </p>
         </div>
         <span className="sync-badge">Schema v{DATA_SCHEMA_VERSION}</span>
       </section>
+
+      <p className={`status-banner sync-status ${status.type}`} aria-live="polite">
+        {status.text}
+      </p>
 
       <div className="sync-grid">
         <section className="panel sync-card">
@@ -893,32 +958,75 @@ function DataSyncPanel({
           <p className="sync-note">
             导入会按记录 ID 合并；如果同一条记录两边都改过，会优先保留更新时间更晚的一条。
           </p>
-          <p className={`status-banner ${status.type}`} aria-live="polite">
-            {status.text}
-          </p>
         </section>
 
         <section className="panel sync-card">
           <div className="section-title">
             <Cloud size={17} />
-            <span>微信小程序同步路径</span>
+            <span>CloudBase 云同步</span>
           </div>
-          <div className="sync-roadmap">
-            <div>
-              <strong>1. 数据迁移</strong>
-              <span>网页端导出 JSON，小程序首版支持导入并上传云端。</span>
-            </div>
-            <div>
-              <strong>2. 云端数据源</strong>
-              <span>接入微信云开发数据库，用用户 OpenID 隔离每个人的数据。</span>
-            </div>
-            <div>
-              <strong>3. 多端合并</strong>
-              <span>网页端和小程序端都保存更新时间，离线新增后再次打开时自动合并。</span>
-            </div>
+          <form
+            className="cloud-sync-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void runCloudSync();
+            }}
+          >
+            <label>
+              环境 ID
+              <input
+                value={cloudConfig.envId}
+                onChange={(event) => updateCloudConfig("envId", event.target.value)}
+                placeholder="例如 car-utils-1gxxxx"
+              />
+            </label>
+            <label>
+              地域
+              <select value={cloudConfig.region} onChange={(event) => updateCloudConfig("region", event.target.value)}>
+                <option value="ap-shanghai">上海 ap-shanghai</option>
+                <option value="ap-guangzhou">广州 ap-guangzhou</option>
+                <option value="ap-beijing">北京 ap-beijing</option>
+                <option value="ap-singapore">新加坡 ap-singapore</option>
+              </select>
+            </label>
+            <label className="wide-field">
+              同步密钥
+              <input
+                type="password"
+                value={cloudConfig.syncKey}
+                onChange={(event) => updateCloudConfig("syncKey", event.target.value)}
+                placeholder="电脑和手机填写同一个密钥"
+              />
+            </label>
+            <label>
+              集合名
+              <input
+                value={cloudConfig.collectionName}
+                onChange={(event) => updateCloudConfig("collectionName", event.target.value)}
+                placeholder="car_utils_sync"
+              />
+            </label>
+            <label>
+              Access Key（可选）
+              <input
+                type="password"
+                value={cloudConfig.accessKey ?? ""}
+                onChange={(event) => updateCloudConfig("accessKey", event.target.value)}
+                placeholder="没有可留空，使用匿名登录"
+              />
+            </label>
+          </form>
+          <div className="sync-actions">
+            <button className="primary-button icon-text-button" type="button" onClick={runCloudSync} disabled={isCloudSyncing}>
+              <RefreshCw size={16} />
+              {isCloudSyncing ? "同步中..." : "立即同步"}
+            </button>
+            <button className="secondary-button" type="button" onClick={saveCloudConfigOnly}>
+              保存配置
+            </button>
           </div>
           <p className="sync-note">
-            真正开启云同步还需要微信小程序 AppID 和 CloudBase 环境 ID；拿到后可以把这里的导入/导出升级成自动同步。
+            首次同步会创建加密云端文档；之后手机和电脑使用同一个环境 ID、集合名和同步密钥即可合并数据。
           </p>
         </section>
 
@@ -930,18 +1038,18 @@ function DataSyncPanel({
           <div className="sync-roadmap">
             <div>
               <strong>1. 先部署成 HTTPS 网页</strong>
-              <span>可以用 GitHub Pages、Vercel 或 Netlify。构建产物是纯静态文件，适合快速上线。</span>
+              <span>出门使用不要依赖本机 LAN 地址；可以部署到 GitHub Pages、Vercel 或 Netlify。</span>
             </div>
             <div>
-              <strong>2. 添加到主屏幕</strong>
-              <span>在 iPhone Safari 打开部署地址，使用分享菜单添加到主屏幕；之后就能像 App 一样启动。</span>
+              <strong>2. 配置 CloudBase 安全域名</strong>
+              <span>把你的 HTTPS 域名加入 CloudBase Web 安全域名白名单，否则 SDK 会拒绝访问。</span>
             </div>
             <div>
-              <strong>3. 记得定期备份</strong>
-              <span>当前数据仍在本机浏览器里。云同步完成前，建议在这个页面定期导出 JSON 备份。</span>
+              <strong>3. 添加到主屏幕</strong>
+              <span>在 iPhone Safari 打开部署地址，使用分享菜单添加到主屏幕，之后就能像 App 一样启动。</span>
             </div>
           </div>
-          <p className="sync-note">已加入 PWA manifest 和离线缓存，最近打开过的页面在弱网或临时离线时也能启动。</p>
+          <p className="sync-note">LAN 地址只适合本机开发；出门同步需要公网 HTTPS 地址和 CloudBase 环境。</p>
         </section>
       </div>
     </section>
