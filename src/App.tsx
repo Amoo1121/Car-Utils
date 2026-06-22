@@ -10,6 +10,7 @@ import {
   Menu,
   Plus,
   Sparkles,
+  Smartphone,
   Upload,
   UserRound,
   Wrench,
@@ -919,6 +920,28 @@ function DataSyncPanel({
           <p className="sync-note">
             真正开启云同步还需要微信小程序 AppID 和 CloudBase 环境 ID；拿到后可以把这里的导入/导出升级成自动同步。
           </p>
+        </section>
+
+        <section className="panel sync-card">
+          <div className="section-title">
+            <Smartphone size={17} />
+            <span>iPhone 移动端使用</span>
+          </div>
+          <div className="sync-roadmap">
+            <div>
+              <strong>1. 先部署成 HTTPS 网页</strong>
+              <span>可以用 GitHub Pages、Vercel 或 Netlify。构建产物是纯静态文件，适合快速上线。</span>
+            </div>
+            <div>
+              <strong>2. 添加到主屏幕</strong>
+              <span>在 iPhone Safari 打开部署地址，使用分享菜单添加到主屏幕；之后就能像 App 一样启动。</span>
+            </div>
+            <div>
+              <strong>3. 记得定期备份</strong>
+              <span>当前数据仍在本机浏览器里。云同步完成前，建议在这个页面定期导出 JSON 备份。</span>
+            </div>
+          </div>
+          <p className="sync-note">已加入 PWA manifest 和离线缓存，最近打开过的页面在弱网或临时离线时也能启动。</p>
         </section>
       </div>
     </section>

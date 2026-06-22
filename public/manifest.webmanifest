@@ -1,0 +1,21 @@
+{
+  "name": "Car Utils",
+  "short_name": "Car Utils",
+  "description": "车辆加油、洗车和耗材记录工具",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f7f3",
+  "theme_color": "#17201b",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "64x64 192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["utilities", "finance", "productivity"],
+  "lang": "zh-CN"
+}
