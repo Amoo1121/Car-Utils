@@ -266,6 +266,45 @@ button:disabled {
   font-size: 30px;
 }
 
+.persistence-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -6px 0 18px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid #dfe6da;
+  color: #4b564e;
+  background: #f6f8f4;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.persistence-status small {
+  flex: 0 0 auto;
+  color: inherit;
+  opacity: 0.72;
+}
+
+.persistence-status.ok {
+  border-color: #d5e6be;
+  color: #2f4a19;
+  background: #f2f8e8;
+}
+
+.persistence-status.warning {
+  border-color: #efd89b;
+  color: #684a09;
+  background: #fff8e5;
+}
+
+.persistence-status.error {
+  border-color: #f1b5aa;
+  color: #8b2f23;
+  background: #fff0ed;
+}
+
 .vehicle-switcher {
   display: flex;
   align-items: end;

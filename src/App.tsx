@@ -16,10 +16,9 @@ import {
   UserRound,
   Wrench,
 } from "lucide-react";
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import {
   DATA_SCHEMA_VERSION,
-  STORAGE_KEY,
   compactDate,
   countStoreItems,
   createStoreBackup,
@@ -62,27 +61,15 @@ import {
   validateCloudSyncConfig,
   type CloudSyncConfig,
 } from "./shared/cloudSync";
+import { storeRepository } from "./repositories/hybridStoreRepository";
+import type { PersistenceStatusSnapshot } from "./repositories/storeRepository";
 
 type AppTab = "overview" | "fuel" | "wash" | "vehicles" | "sync";
 type FuelSubTab = "analytics" | "record" | "history";
 type WashSubTab = "record" | "warehouse" | "history";
 
-function loadStore(): Store {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return normalizeStore(emptyStore);
-
-  try {
-    const store = normalizeStore(JSON.parse(raw));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-    return store;
-  } catch {
-    localStorage.removeItem(STORAGE_KEY);
-    return normalizeStore(emptyStore);
-  }
-}
-
 function saveStore(store: Store) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  void storeRepository.save(store);
 }
 
 function makeId(prefix: string) {
@@ -105,12 +92,75 @@ function number(value: number, digits = 1) {
   return Number.isFinite(value) ? value.toFixed(digits) : "-";
 }
 
+function PersistenceStatusBanner({ snapshot }: { snapshot: PersistenceStatusSnapshot }) {
+  const content = getPersistenceStatusContent(snapshot);
+  const updatedAt = new Date(snapshot.updatedAt).toLocaleTimeString("zh-CN", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+  return (
+    <p className={`persistence-status ${content.tone}`} aria-live="polite" title={snapshot.error?.message}>
+      <span>{content.label}</span>
+      <small>{updatedAt}</small>
+    </p>
+  );
+}
+
+function getPersistenceStatusContent(snapshot: PersistenceStatusSnapshot) {
+  switch (snapshot.status) {
+    case "backend_connected":
+      return { tone: "ok", label: "本地后端已连接，正在使用 SQLite 数据源。" };
+    case "backend_empty_importing_legacy":
+      return { tone: "warning", label: "本地后端为空，正在导入浏览器旧数据..." };
+    case "backend_persisted":
+      return { tone: "ok", label: "数据已保存到本地后端，并保留浏览器备份。" };
+    case "backend_unavailable_using_local_backup":
+      return { tone: "warning", label: "本地后端不可用，当前使用浏览器备份。" };
+    case "save_failed_local_backup_only":
+      return { tone: "error", label: "保存到后端失败，已暂存到浏览器备份。" };
+  }
+}
+
 export function App() {
-  const [store, setStore] = useState<Store>(() => loadStore());
+  const [store, setStore] = useState<Store>(() => normalizeStore(emptyStore));
+  const [isStoreLoading, setIsStoreLoading] = useState(true);
+  const [persistenceStatus, setPersistenceStatus] = useState<PersistenceStatusSnapshot | null>(() =>
+    storeRepository.getPersistenceStatus(),
+  );
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<AppTab>("overview");
   const [navCollapsed, setNavCollapsed] = useState(false);
   const currentUser = store.users.find((user) => user.id === store.currentUserId);
+
+  useEffect(() => {
+    let isMounted = true;
+    const unsubscribePersistenceStatus = storeRepository.subscribePersistenceStatus((snapshot) => {
+      if (isMounted) setPersistenceStatus(snapshot);
+    });
+
+    storeRepository
+      .load()
+      .then((result) => {
+        if (!isMounted) return;
+        setStore(result.store);
+      })
+      .catch((error) => {
+        console.warn("Failed to load Car Utils store.", error);
+        if (!isMounted) return;
+        setStore(normalizeStore(emptyStore));
+      })
+      .finally(() => {
+        if (isMounted) setIsStoreLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+      unsubscribePersistenceStatus();
+    };
+  }, []);
 
   function commit(next: Store) {
     setStore(next);
@@ -383,6 +433,18 @@ export function App() {
     return replaceStore(mergeStores(store, importedStore));
   }
 
+  if (isStoreLoading) {
+    return (
+      <main className="login-screen">
+        <section className="login-card">
+          <h1>Car Utils</h1>
+          <p>正在加载本地数据...</p>
+          {persistenceStatus && <PersistenceStatusBanner snapshot={persistenceStatus} />}
+        </section>
+      </main>
+    );
+  }
+
   if (!currentUser) {
     return <LoginScreen onLogin={login} />;
   }
@@ -445,6 +507,7 @@ export function App() {
               vehicles={vehicleSwitcherVehicles}
             />
           </header>
+          {persistenceStatus && <PersistenceStatusBanner snapshot={persistenceStatus} />}
 
           {activeVehicle || activeTab === "vehicles" || activeTab === "sync" ? (
             <>

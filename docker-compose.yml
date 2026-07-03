@@ -1,0 +1,17 @@
+services:
+  car-utils-server:
+    build:
+      context: ./server
+    container_name: car-utils-server
+    environment:
+      PORT: "3001"
+      HOST: "0.0.0.0"
+      CAR_UTILS_DB_PATH: /app/data/car-utils.sqlite
+      CORS_ORIGIN: "*"
+    ports:
+      - "3001:3001"
+    volumes:
+      - car-utils-sqlite:/app/data
+
+volumes:
+  car-utils-sqlite:
