@@ -34,8 +34,6 @@ import {
   paidUnitPrice,
   parseStoreBackup,
   recordCost,
-  restoreEntity,
-  softDeleteEntity,
   stationName,
   today,
   vehiclePresets,
@@ -71,6 +69,46 @@ import {
   unarchiveVehicleInStore,
   updateVehicleInStore,
 } from "./domain/vehicle/vehicleService";
+import {
+  addFuelRecordToStore,
+  buildFuelRecord,
+  createEmptyFuelDraft,
+  createFuelDraft,
+  resolveFuelDraftPaidAmount,
+  restoreFuelRecordInStore,
+  softDeleteFuelRecordInStore,
+  updateFuelRecordInStore,
+  type FuelRecordDraft,
+} from "./domain/fuel/fuelService";
+import {
+  addWashRecordToStore,
+  buildWashRecord,
+  convertWashAmount,
+  createEmptyWashDraft,
+  createEmptyWashProductUsageDraft,
+  createWashDraft,
+  estimateWashProductCost,
+  resolveWashCost,
+  restoreWashRecordInStore,
+  softDeleteWashRecordInStore,
+  updateWashRecordInStore,
+  type WashProductUsageDraft,
+  type WashRecordDraft,
+} from "./domain/wash/washService";
+import {
+  addWashProductPurchaseToStore,
+  addWashProductToStore,
+  buildWashProductFromUsageDraft,
+  buildWashProductSubmission,
+  createEmptyWashProductWarehouseDraft,
+  createWashProductDraftFromProduct,
+  createWashProductReplenishDraftFromProduct,
+  restoreWashProductInStore,
+  softDeleteWashProductInStore,
+  updateWashProductInStore,
+  type WashProductDraft,
+  type WashProductFormMode,
+} from "./domain/wash/washProductService";
 
 type AppTab = "overview" | "fuel" | "wash" | "vehicles" | "sync";
 type FuelSubTab = "analytics" | "record" | "history";
@@ -240,158 +278,82 @@ export function App() {
   }
 
   function addFuelRecord(record: Omit<FuelRecord, "id" | "userId">) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      fuelRecords: [
-        ...store.fuelRecords,
-        withCreatedTimestamps({ ...record, id: makeId("fuel"), userId: currentUser.id }),
-      ],
-    });
+    const nextStore = addFuelRecordToStore(store, currentUser, record);
+    if (!nextStore) return;
+    commit(nextStore);
   }
 
   function updateFuelRecord(recordId: string, record: Omit<FuelRecord, "id" | "userId">) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      fuelRecords: store.fuelRecords.map((currentRecord) =>
-        currentRecord.id === recordId && currentRecord.userId === currentUser.id
-          ? withUpdatedTimestamp({
-              ...record,
-              id: currentRecord.id,
-              userId: currentRecord.userId,
-              createdAt: currentRecord.createdAt,
-              deletedAt: currentRecord.deletedAt,
-            })
-          : currentRecord,
-      ),
-    });
+    const nextStore = updateFuelRecordInStore(store, currentUser, recordId, record);
+    if (!nextStore) return;
+    commit(nextStore);
   }
 
   function deleteFuelRecord(recordId: string) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      fuelRecords: store.fuelRecords.map((record) =>
-        record.id === recordId && record.userId === currentUser.id ? softDeleteEntity(record) : record,
-      ),
-    });
+    const nextStore = softDeleteFuelRecordInStore(store, currentUser, recordId);
+    if (!nextStore) return;
+    commit(nextStore);
   }
 
   function restoreFuelRecord(recordId: string) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      fuelRecords: store.fuelRecords.map((record) =>
-        record.id === recordId && record.userId === currentUser.id ? restoreEntity(record) : record,
-      ),
-    });
+    const nextStore = restoreFuelRecordInStore(store, currentUser, recordId);
+    if (!nextStore) return;
+    commit(nextStore);
   }
 
   function addWashRecord(record: Omit<WashRecord, "id" | "userId">) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      washRecords: [
-        ...store.washRecords,
-        withCreatedTimestamps({ ...record, id: makeId("wash"), userId: currentUser.id }),
-      ],
-    });
+    const nextStore = addWashRecordToStore(store, currentUser, record);
+    if (!nextStore) return;
+    commit(nextStore);
   }
 
   function updateWashRecord(recordId: string, record: Omit<WashRecord, "id" | "userId">) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      washRecords: store.washRecords.map((currentRecord) =>
-        currentRecord.id === recordId && currentRecord.userId === currentUser.id
-          ? withUpdatedTimestamp({
-              ...record,
-              id: currentRecord.id,
-              userId: currentRecord.userId,
-              createdAt: currentRecord.createdAt,
-              deletedAt: currentRecord.deletedAt,
-            })
-          : currentRecord,
-      ),
-    });
+    const nextStore = updateWashRecordInStore(store, currentUser, recordId, record);
+    if (!nextStore) return;
+    commit(nextStore);
   }
 
   function deleteWashRecord(recordId: string) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      washRecords: store.washRecords.map((record) =>
-        record.id === recordId && record.userId === currentUser.id ? softDeleteEntity(record) : record,
-      ),
-    });
+    const nextStore = softDeleteWashRecordInStore(store, currentUser, recordId);
+    if (!nextStore) return;
+    commit(nextStore);
   }
 
   function restoreWashRecord(recordId: string) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      washRecords: store.washRecords.map((record) =>
-        record.id === recordId && record.userId === currentUser.id ? restoreEntity(record) : record,
-      ),
-    });
+    const nextStore = restoreWashRecordInStore(store, currentUser, recordId);
+    if (!nextStore) return;
+    commit(nextStore);
   }
 
   function addWashProduct(product: Omit<WashProduct, "id" | "userId">) {
-    if (!currentUser) return undefined;
-    const nextProduct = withCreatedTimestamps({ ...product, id: makeId("wash_product"), userId: currentUser.id });
-    commit({ ...store, washProducts: [...store.washProducts, nextProduct] });
-    return nextProduct;
+    const result = addWashProductToStore(store, currentUser, product);
+    if (!result) return undefined;
+    commit(result.store);
+    return result.product;
   }
 
   function addWashProductPurchase(productId: string, purchase: WashProductPurchase) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      washProducts: store.washProducts.map((product) =>
-        product.id === productId && product.userId === currentUser.id
-          ? withUpdatedTimestamp({ ...product, purchases: [...product.purchases, purchase] })
-          : product,
-      ),
-    });
+    const nextStore = addWashProductPurchaseToStore(store, currentUser, productId, purchase);
+    if (!nextStore) return;
+    commit(nextStore);
   }
 
   function updateWashProduct(productId: string, product: Omit<WashProduct, "id" | "userId">) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      washProducts: store.washProducts.map((currentProduct) =>
-        currentProduct.id === productId && currentProduct.userId === currentUser.id
-          ? withUpdatedTimestamp({
-              ...product,
-              id: currentProduct.id,
-              userId: currentProduct.userId,
-              createdAt: currentProduct.createdAt,
-              deletedAt: currentProduct.deletedAt,
-            })
-          : currentProduct,
-      ),
-    });
+    const nextStore = updateWashProductInStore(store, currentUser, productId, product);
+    if (!nextStore) return;
+    commit(nextStore);
   }
 
   function deleteWashProduct(productId: string) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      washProducts: store.washProducts.map((product) =>
-        product.id === productId && product.userId === currentUser.id ? softDeleteEntity(product) : product,
-      ),
-    });
+    const nextStore = softDeleteWashProductInStore(store, currentUser, productId);
+    if (!nextStore) return;
+    commit(nextStore);
   }
 
   function restoreWashProduct(productId: string) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      washProducts: store.washProducts.map((product) =>
-        product.id === productId && product.userId === currentUser.id ? restoreEntity(product) : product,
-      ),
-    });
+    const nextStore = restoreWashProductInStore(store, currentUser, productId);
+    if (!nextStore) return;
+    commit(nextStore);
   }
 
   function replaceStore(nextStore: Store) {
@@ -1672,71 +1634,6 @@ type StationPerformance = StationSummary & {
   relativeToAverage: number;
 };
 
-type FuelRecordDraft = {
-  date: string;
-  odometer: string;
-  fuelGrade: string;
-  customFuelGrade: string;
-  volume: string;
-  pricePerUnit: string;
-  paidAmount: string;
-  fuelLevelBefore: string;
-  fuelLevelAfter: string;
-  station: string;
-  fullTank: boolean;
-};
-
-type WashProductUsageDraft = {
-  id: string;
-  productId: string;
-  name: string;
-  category: string;
-  step: string;
-  purchasePrice: string;
-  capacity: string;
-  capacityUnit: WashProductUsage["capacityUnit"];
-  usedAmount: string;
-  usedUnit: WashProductUsage["usedUnit"];
-  dilutionRatio: string;
-  estimatedCost: string;
-  note: string;
-};
-
-type WashRecordDraft = {
-  date: string;
-  odometer: string;
-  washType: WashType;
-  shopName: string;
-  location: string;
-  items: string;
-  minutes: string;
-  laborCost: string;
-  materialCost: string;
-  waterElectricityCost: string;
-  locationCost: string;
-  cost: string;
-  effectRating: string;
-  nextSuggestedDate: string;
-  notes: string;
-  products: WashProductUsageDraft[];
-};
-
-type WashProductDraft = {
-  name: string;
-  brand: string;
-  category: string;
-  purchaseDate: string;
-  purchasePrice: string;
-  capacity: string;
-  capacityUnit: WashProductPurchase["capacityUnit"];
-  note: string;
-};
-
-type WashProductFormMode = {
-  mode: "add" | "edit" | "replenish";
-  productId: string;
-};
-
 const washTypeOptions: { id: WashType; label: string }[] = [
   { id: "diy", label: "DIY 洗车" },
   { id: "shop_basic", label: "店内普洗" },
@@ -2076,53 +1973,19 @@ function FuelForm({
   vehicle: Vehicle;
   onAdd: (record: Omit<FuelRecord, "id" | "userId">) => void;
 }) {
-  const [form, setForm] = useState({
-    date: today(),
-    odometer: "",
-    fuelGrade: "95#",
-    customFuelGrade: "",
-    volume: "",
-    pricePerUnit: "",
-    paidAmount: "",
-    fuelLevelBefore: "",
-    fuelLevelAfter: "",
-    station: "",
-    fullTank: false,
-  });
+  const [form, setForm] = useState<FuelRecordDraft>(() => createEmptyFuelDraft());
 
   const totalCost = Number(form.volume) * Number(form.pricePerUnit);
-  const paidAmount = form.paidAmount ? Number(form.paidAmount) : totalCost;
-  const selectedFuelGrade = form.fuelGrade === "其他" ? form.customFuelGrade.trim() || "其他" : form.fuelGrade;
+  const paidAmount = resolveFuelDraftPaidAmount(form);
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!form.volume || !form.pricePerUnit) return;
-    onAdd({
-      vehicleId: vehicle.id,
-      date: form.date,
-      odometer: form.odometer ? Number(form.odometer) : undefined,
-      volume: Number(form.volume),
-      pricePerUnit: Number(form.pricePerUnit),
-      fuelGrade: selectedFuelGrade,
-      paidAmount,
-      fuelLevelBefore: form.fuelLevelBefore ? Number(form.fuelLevelBefore) : undefined,
-      fuelLevelAfter: form.fuelLevelAfter ? Number(form.fuelLevelAfter) : undefined,
-      totalCost,
-      station: form.station,
-      fullTank: form.fullTank,
-    });
+    onAdd(buildFuelRecord(vehicle.id, form));
     setForm({
-      date: today(),
-      odometer: "",
+      ...createEmptyFuelDraft(form.fuelGrade),
       fuelGrade: form.fuelGrade,
       customFuelGrade: form.customFuelGrade,
-      volume: "",
-      pricePerUnit: "",
-      paidAmount: "",
-      fuelLevelBefore: "",
-      fuelLevelAfter: "",
-      station: "",
-      fullTank: false,
     });
   }
 
@@ -2381,177 +2244,6 @@ function WashForm({
   );
 }
 
-function createEmptyWashDraft(washType: WashType = "diy"): WashRecordDraft {
-  return {
-    date: today(),
-    odometer: "",
-    washType,
-    shopName: "",
-    location: "",
-    items: "预洗, 正洗, 轮毂",
-    minutes: "",
-    laborCost: "",
-    materialCost: "",
-    waterElectricityCost: "",
-    locationCost: "",
-    cost: "",
-    effectRating: "",
-    nextSuggestedDate: "",
-    notes: "",
-    products: washType === "diy" ? [createEmptyWashProductDraft()] : [],
-  };
-}
-
-function createEmptyWashProductDraft(): WashProductUsageDraft {
-  return {
-    id: makeId("wash_product_usage"),
-    productId: "",
-    name: "",
-    category: "预洗液",
-    step: "预洗",
-    purchasePrice: "",
-    capacity: "",
-    capacityUnit: "ml",
-    usedAmount: "",
-    usedUnit: "ml",
-    dilutionRatio: "",
-    estimatedCost: "",
-    note: "",
-  };
-}
-
-function createWashDraft(record: WashRecord): WashRecordDraft {
-  return {
-    date: record.date,
-    odometer: record.odometer != null ? String(record.odometer) : "",
-    washType: record.washType ?? "diy",
-    shopName: record.shopName ?? "",
-    location: record.location ?? "",
-    items: record.items.join(", "),
-    minutes: record.minutes ? String(record.minutes) : "",
-    laborCost: record.laborCost != null ? String(record.laborCost) : "",
-    materialCost: record.materialCost != null ? String(record.materialCost) : "",
-    waterElectricityCost: record.waterElectricityCost != null ? String(record.waterElectricityCost) : "",
-    locationCost: record.locationCost != null ? String(record.locationCost) : "",
-    cost: record.cost ? String(record.cost) : "",
-    effectRating: record.effectRating ? String(record.effectRating) : "",
-    nextSuggestedDate: record.nextSuggestedDate ?? "",
-    notes: record.notes,
-    products:
-      record.products && record.products.length > 0
-        ? record.products.map(createWashProductDraft)
-        : record.washType === "diy"
-          ? [createEmptyWashProductDraft()]
-          : [],
-  };
-}
-
-function createWashProductDraft(product: WashProductUsage): WashProductUsageDraft {
-  return {
-    id: product.id ?? makeId("wash_product_usage"),
-    productId: product.productId ?? "",
-    name: product.name,
-    category: product.category ?? "其他",
-    step: product.step ?? "其他",
-    purchasePrice: product.purchasePrice != null ? String(product.purchasePrice) : "",
-    capacity: product.capacity != null ? String(product.capacity) : "",
-    capacityUnit: product.capacityUnit ?? "ml",
-    usedAmount: product.usedAmount != null ? String(product.usedAmount) : "",
-    usedUnit: product.usedUnit ?? "ml",
-    dilutionRatio: product.dilutionRatio ?? "",
-    estimatedCost: product.estimatedCost != null ? String(product.estimatedCost) : product.cost != null ? String(product.cost) : "",
-    note: product.note ?? "",
-  };
-}
-
-function buildWashRecord(vehicleId: string, draft: WashRecordDraft): Omit<WashRecord, "id" | "userId"> {
-  const products = draft.washType === "diy" ? buildWashProductUsages(draft.products) : [];
-  const estimatedProductCost = products.reduce((sum, product) => sum + (product.estimatedCost ?? product.cost ?? 0), 0);
-  const materialCost = draft.materialCost ? Number(draft.materialCost) : estimatedProductCost || undefined;
-  const resolvedCost = draft.cost ? Number(draft.cost) : resolveWashCost(draft);
-
-  return {
-    vehicleId,
-    date: draft.date,
-    odometer: draft.odometer ? Number(draft.odometer) : undefined,
-    items: draft.items
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean),
-    minutes: Number(draft.minutes || 0),
-    cost: resolvedCost,
-    notes: draft.notes,
-    washType: draft.washType,
-    shopName: draft.shopName.trim() || undefined,
-    location: draft.location.trim() || undefined,
-    laborCost: draft.laborCost ? Number(draft.laborCost) : undefined,
-    materialCost,
-    waterElectricityCost: draft.waterElectricityCost ? Number(draft.waterElectricityCost) : undefined,
-    locationCost: draft.locationCost ? Number(draft.locationCost) : undefined,
-    products,
-    effectRating: draft.effectRating ? (Number(draft.effectRating) as WashRecord["effectRating"]) : undefined,
-    nextSuggestedDate: draft.nextSuggestedDate || undefined,
-  };
-}
-
-function buildWashProductUsages(products: WashProductUsageDraft[]): WashProductUsage[] {
-  return products
-    .filter((product) => product.name.trim())
-    .map((product) => {
-      const estimatedCost = product.estimatedCost ? Number(product.estimatedCost) : estimateWashProductCost(product) || undefined;
-      return {
-        id: product.id,
-        productId: product.productId || undefined,
-        name: product.name.trim(),
-        category: product.category,
-        step: product.step,
-        purchasePrice: product.purchasePrice ? Number(product.purchasePrice) : undefined,
-        capacity: product.capacity ? Number(product.capacity) : undefined,
-        capacityUnit: product.capacityUnit,
-        usedAmount: product.usedAmount ? Number(product.usedAmount) : undefined,
-        usedUnit: product.usedUnit,
-        dilutionRatio: product.dilutionRatio.trim() || undefined,
-        estimatedCost,
-        cost: estimatedCost,
-        note: product.note.trim() || undefined,
-      };
-    });
-}
-
-function resolveWashCost(draft: WashRecordDraft) {
-  if (draft.cost) return Number(draft.cost);
-
-  const productCost = draft.products.reduce((sum, product) => {
-    const cost = product.estimatedCost ? Number(product.estimatedCost) : estimateWashProductCost(product);
-    return sum + cost;
-  }, 0);
-
-  return (
-    Number(draft.laborCost || 0) +
-    Number(draft.materialCost || 0) +
-    Number(draft.waterElectricityCost || 0) +
-    Number(draft.locationCost || 0) +
-    productCost
-  );
-}
-
-function estimateWashProductCost(product: WashProductUsageDraft) {
-  const purchasePrice = Number(product.purchasePrice);
-  const capacity = Number(product.capacity);
-  const usedAmount = Number(product.usedAmount);
-  const capacityBase = convertWashAmount(capacity, product.capacityUnit);
-  const usedBase = convertWashAmount(usedAmount, product.usedUnit);
-
-  if (purchasePrice <= 0 || capacityBase <= 0 || usedBase <= 0) return 0;
-  return (purchasePrice / capacityBase) * usedBase;
-}
-
-function convertWashAmount(amount: number, unit: WashProductUsage["capacityUnit"] | WashProductUsage["usedUnit"]) {
-  if (!Number.isFinite(amount)) return 0;
-  if (unit === "L" || unit === "kg") return amount * 1000;
-  return amount;
-}
-
 function WashRecordFields({
   draft,
   onChange,
@@ -2597,27 +2289,10 @@ function WashRecordFields({
   }
 
   function createWarehouseProductFromUsage(product: WashProductUsageDraft) {
-    if (!product.name.trim()) return;
+    const productInput = buildWashProductFromUsageDraft(product, draft.date);
+    if (!productInput) return;
 
-    const purchasePrice = Number(product.purchasePrice);
-    const capacity = Number(product.capacity);
-    const nextProduct = onCreateProduct({
-      type: "washProduct",
-      name: product.name.trim(),
-      category: product.category || "其他",
-      purchases:
-        purchasePrice > 0 && capacity > 0
-          ? [
-              {
-                id: makeId("wash_purchase"),
-                date: draft.date,
-                purchasePrice,
-                capacity,
-                capacityUnit: product.capacityUnit ?? "ml",
-              },
-            ]
-          : [],
-    });
+    const nextProduct = onCreateProduct(productInput);
 
     if (nextProduct) updateProduct(product.id, { productId: nextProduct.id });
   }
@@ -2748,7 +2423,7 @@ function WashRecordFields({
             <button
               className="text-button"
               type="button"
-              onClick={() => onChange({ ...draft, products: [...draft.products, createEmptyWashProductDraft()] })}
+                onClick={() => onChange({ ...draft, products: [...draft.products, createEmptyWashProductUsageDraft()] })}
             >
               添加耗材
             </button>
@@ -2929,52 +2604,6 @@ function WashRecordFields({
   );
 }
 
-function createEmptyWashProductWarehouseDraft(): WashProductDraft {
-  return {
-    name: "",
-    brand: "",
-    category: "预洗液",
-    purchaseDate: today(),
-    purchasePrice: "",
-    capacity: "",
-    capacityUnit: "ml",
-    note: "",
-  };
-}
-
-function buildWashProductPurchase(draft: WashProductDraft): WashProductPurchase {
-  return {
-    id: makeId("wash_purchase"),
-    date: draft.purchaseDate,
-    purchasePrice: draft.purchasePrice ? Number(draft.purchasePrice) : undefined,
-    capacity: draft.capacity ? Number(draft.capacity) : undefined,
-    capacityUnit: draft.capacityUnit || undefined,
-    note: draft.note.trim() || undefined,
-  };
-}
-
-function hasPurchaseDetails(purchase: WashProductPurchase) {
-  return (
-    (purchase.purchasePrice != null && purchase.purchasePrice > 0) ||
-    (purchase.capacity != null && purchase.capacity > 0) ||
-    Boolean(purchase.note?.trim())
-  );
-}
-
-function createWashProductDraftFromProduct(product: WashProduct): WashProductDraft {
-  const latestPurchase = product.purchases.at(-1);
-  return {
-    name: product.name,
-    brand: product.brand ?? "",
-    category: product.category,
-    purchaseDate: latestPurchase?.date ?? today(),
-    purchasePrice: latestPurchase?.purchasePrice != null ? String(latestPurchase.purchasePrice) : "",
-    capacity: latestPurchase?.capacity != null ? String(latestPurchase.capacity) : "",
-    capacityUnit: latestPurchase?.capacityUnit ?? "ml",
-    note: product.note ?? latestPurchase?.note ?? "",
-  };
-}
-
 function WashProductWarehouse({
   deletedWashProducts,
   onAdd,
@@ -3012,44 +2641,16 @@ function WashProductWarehouse({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (!draft.name.trim()) return;
+    const submission = buildWashProductSubmission(
+      formMode,
+      draft,
+      formMode.productId ? washProducts.find((product) => product.id === formMode.productId) : undefined,
+    );
+    if (!submission) return;
 
-    const purchase = buildWashProductPurchase(draft);
-    if (formMode.mode === "replenish" && formMode.productId) {
-      if (hasPurchaseDetails(purchase)) onReplenish(formMode.productId, purchase);
-    } else if (formMode.mode === "edit" && formMode.productId) {
-      const currentProduct = washProducts.find((product) => product.id === formMode.productId);
-      if (!currentProduct) return;
-
-      const purchases = [...currentProduct.purchases];
-      if (hasPurchaseDetails(purchase)) {
-        if (purchases.length > 0) {
-          purchases[purchases.length - 1] = { ...purchases[purchases.length - 1], ...purchase };
-        } else {
-          purchases.push(purchase);
-        }
-      } else if (purchases.length > 0) {
-        purchases.pop();
-      }
-
-      onUpdate(currentProduct.id, {
-        type: "washProduct",
-        name: draft.name.trim(),
-        brand: draft.brand.trim() || undefined,
-        category: draft.category,
-        purchases,
-        note: draft.note.trim() || undefined,
-      });
-    } else {
-      onAdd({
-        type: "washProduct",
-        name: draft.name.trim(),
-        brand: draft.brand.trim() || undefined,
-        category: draft.category,
-        purchases: hasPurchaseDetails(purchase) ? [purchase] : [],
-        note: draft.note.trim() || undefined,
-      });
-    }
+    if (submission.type === "replenish") onReplenish(submission.productId, submission.purchase);
+    if (submission.type === "update") onUpdate(submission.productId, submission.product);
+    if (submission.type === "add") onAdd(submission.product);
 
     setDraft(createEmptyWashProductWarehouseDraft());
     setFormMode({ mode: "add", productId: "" });
@@ -3062,23 +2663,13 @@ function WashProductWarehouse({
 
   function startEditing(product: WashProduct) {
     setFormMode({ mode: "edit", productId: product.id });
-    setDraft(createWashProductDraftFromProduct(product));
+    setDraft(createWashProductDraftFromProduct(product, today()));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function startReplenishing(product: WashProduct) {
-    const latestPurchase = product.purchases.at(-1);
     setFormMode({ mode: "replenish", productId: product.id });
-    setDraft({
-      name: product.name,
-      brand: product.brand ?? "",
-      category: product.category,
-      purchaseDate: today(),
-      purchasePrice: latestPurchase?.purchasePrice != null ? String(latestPurchase.purchasePrice) : "",
-      capacity: latestPurchase?.capacity != null ? String(latestPurchase.capacity) : "",
-      capacityUnit: latestPurchase?.capacityUnit ?? "ml",
-      note: "",
-    });
+    setDraft(createWashProductReplenishDraftFromProduct(product, today()));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -3354,46 +2945,6 @@ function fuelRecordMeta(record: FuelRecord) {
     .join(" · ");
 }
 
-function createFuelDraft(record: FuelRecord): FuelRecordDraft {
-  const knownFuelGrade = record.fuelGrade && fuelGrades.includes(record.fuelGrade);
-
-  return {
-    date: record.date,
-    odometer: record.odometer != null ? String(record.odometer) : "",
-    fuelGrade: knownFuelGrade ? record.fuelGrade! : record.fuelGrade ? "其他" : "95#",
-    customFuelGrade: knownFuelGrade ? "" : record.fuelGrade ?? "",
-    volume: String(record.volume),
-    pricePerUnit: String(record.pricePerUnit),
-    paidAmount: record.paidAmount != null ? String(record.paidAmount) : "",
-    fuelLevelBefore: record.fuelLevelBefore != null ? String(record.fuelLevelBefore) : "",
-    fuelLevelAfter: record.fuelLevelAfter != null ? String(record.fuelLevelAfter) : "",
-    station: record.station,
-    fullTank: record.fullTank,
-  };
-}
-
-function buildFuelRecord(record: FuelRecord, draft: FuelRecordDraft): Omit<FuelRecord, "id" | "userId"> {
-  const volume = Number(draft.volume);
-  const pricePerUnit = Number(draft.pricePerUnit);
-  const totalCost = volume * pricePerUnit;
-  const fuelGrade = draft.fuelGrade === "其他" ? draft.customFuelGrade.trim() || "其他" : draft.fuelGrade;
-
-  return {
-    vehicleId: record.vehicleId,
-    date: draft.date,
-    odometer: draft.odometer ? Number(draft.odometer) : undefined,
-    volume,
-    pricePerUnit,
-    fuelGrade,
-    paidAmount: draft.paidAmount ? Number(draft.paidAmount) : undefined,
-    fuelLevelBefore: draft.fuelLevelBefore ? Number(draft.fuelLevelBefore) : undefined,
-    fuelLevelAfter: draft.fuelLevelAfter ? Number(draft.fuelLevelAfter) : undefined,
-    totalCost,
-    station: draft.station,
-    fullTank: draft.fullTank,
-  };
-}
-
 function FuelRecordsPanel({
   deletedFuelRecords = [],
   emptyText = "暂无加油记录",
@@ -3518,7 +3069,7 @@ function FuelRecordEditor({
   onCancel: () => void;
   onSave: (record: Omit<FuelRecord, "id" | "userId">) => void;
 }) {
-  const [draft, setDraft] = useState<FuelRecordDraft>(() => createFuelDraft(record));
+  const [draft, setDraft] = useState<FuelRecordDraft>(() => createFuelDraft(record, fuelGrades));
   const totalCost = Number(draft.volume) * Number(draft.pricePerUnit);
   const paidAmount = draft.paidAmount ? Number(draft.paidAmount) : totalCost;
 
