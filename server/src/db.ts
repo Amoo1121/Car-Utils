@@ -15,9 +15,18 @@ export function openDatabase(databasePath = resolveDatabasePath()) {
       id TEXT PRIMARY KEY,
       schema_version INTEGER,
       payload TEXT NOT NULL,
-      updated_at INTEGER NOT NULL
+      updated_at INTEGER NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1
     );
   `);
+  ensureStoreVersionColumn(database);
 
   return database;
+}
+
+function ensureStoreVersionColumn(database: DatabaseSync) {
+  const columns = database.prepare("PRAGMA table_info(app_store)").all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === "version")) {
+    database.exec("ALTER TABLE app_store ADD COLUMN version INTEGER NOT NULL DEFAULT 1");
+  }
 }

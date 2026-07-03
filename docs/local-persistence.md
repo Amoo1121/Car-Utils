@@ -51,6 +51,16 @@ PUT /api/store
 - `schema_version`
 - `payload`
 - `updated_at`
+- `version`
+
+后端会通过响应头返回当前版本：
+
+```text
+x-car-utils-store-version
+x-car-utils-updated-at
+```
+
+前端保存时会带上 `If-Match` 或 `If-None-Match`，避免多个浏览器窗口用旧 Store 覆盖新 Store。
 
 ## SQLite 文件和 Docker volume
 
@@ -99,7 +109,8 @@ docker run --rm \
 3. 如果后端没有数据，读取旧 `localStorage` 中的 `car-utils-store-v1`。
 4. 如果旧数据存在，先 `normalizeStore`，再 `PUT /api/store` 写入 SQLite。
 5. 迁移成功后，不删除 `localStorage`，继续保留为 legacy backup。
-6. 后续每次保存，都会尝试写后端，并保留一份 `localStorage` backup。
+6. 后续每次保存，会先同步写一份 `localStorage` backup，再排队写入后端。
+7. 如果刷新或关闭页面导致后端未及时写入，下次打开时会比较 backup 时间和后端更新时间；backup 更新时会优先恢复并写回后端。
 
 `STORAGE_KEY` 仍然是：
 
@@ -114,6 +125,7 @@ car-utils-store-v1
 - 控制台会输出 warning。
 - 前端会降级读取旧 `localStorage`。
 - 保存时会保留 `localStorage` backup。
+- 后端恢复后，保存会使用现有 `mergeStores` 和版本检查，尽量避免旧窗口覆盖新数据。
 
 这只是本地开发阶段的保险策略。长期方案仍然应该以 SQLite 后端或后续统一同步层为准。
 

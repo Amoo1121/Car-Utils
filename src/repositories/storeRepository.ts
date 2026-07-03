@@ -26,14 +26,34 @@ export type StoreLoadResult = {
   error?: Error;
 };
 
+export type RemoteStoreSnapshot = {
+  store: Store;
+  version?: number;
+  updatedAt?: number;
+};
+
+export type PutStoreOptions = {
+  expectedVersion?: number | null;
+};
+
 export interface RemoteStoreRepository {
-  getStore(): Promise<Store | null>;
-  putStore(store: Store): Promise<Store>;
+  getStore(): Promise<RemoteStoreSnapshot | null>;
+  putStore(store: Store, options?: PutStoreOptions): Promise<RemoteStoreSnapshot>;
 }
+
+export type LegacyStoreSnapshot = {
+  store: Store;
+  savedAt?: number;
+};
+
+export type SaveLegacyStoreOptions = {
+  savedAt?: number;
+};
 
 export interface LegacyStoreRepository {
   loadLegacyStore(): Store | null;
-  saveLegacyStore(store: Store): void;
+  loadLegacyStoreSnapshot(): LegacyStoreSnapshot | null;
+  saveLegacyStore(store: Store, options?: SaveLegacyStoreOptions): void;
 }
 
 export interface StoreRepository {
