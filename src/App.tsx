@@ -63,6 +63,14 @@ import {
 } from "./shared/cloudSync";
 import { storeRepository } from "./repositories/hybridStoreRepository";
 import type { PersistenceStatusSnapshot } from "./repositories/storeRepository";
+import {
+  addVehicleToStore,
+  archiveVehicleInStore,
+  restoreVehicleInStore,
+  softDeleteVehicleInStore,
+  unarchiveVehicleInStore,
+  updateVehicleInStore,
+} from "./domain/vehicle/vehicleService";
 
 type AppTab = "overview" | "fuel" | "wash" | "vehicles" | "sync";
 type FuelSubTab = "analytics" | "record" | "history";
@@ -189,79 +197,45 @@ export function App() {
   }
 
   function addVehicle(vehicle: Omit<Vehicle, "id" | "userId">) {
-    if (!currentUser) return;
-    const nextVehicle = withCreatedTimestamps({ ...vehicle, id: makeId("vehicle"), userId: currentUser.id });
-    commit({ ...store, vehicles: [...store.vehicles, nextVehicle] });
-    setSelectedVehicleId(nextVehicle.id);
+    const result = addVehicleToStore(store, currentUser, vehicle);
+    if (!result) return;
+    commit(result.store);
+    setSelectedVehicleId(result.vehicle.id);
     setActiveTab("overview");
   }
 
   function updateVehicle(vehicleId: string, vehicle: Omit<Vehicle, "id" | "userId">) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      vehicles: store.vehicles.map((currentVehicle) =>
-        currentVehicle.id === vehicleId && currentVehicle.userId === currentUser.id
-          ? withUpdatedTimestamp({
-              ...vehicle,
-              id: currentVehicle.id,
-              userId: currentVehicle.userId,
-              createdAt: currentVehicle.createdAt,
-              deletedAt: currentVehicle.deletedAt,
-            })
-          : currentVehicle,
-      ),
-    });
+    const nextStore = updateVehicleInStore(store, currentUser, vehicleId, vehicle);
+    if (!nextStore) return;
+    commit(nextStore);
     setSelectedVehicleId(vehicleId);
   }
 
   function archiveVehicle(vehicleId: string) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      vehicles: store.vehicles.map((vehicle) =>
-        vehicle.id === vehicleId && vehicle.userId === currentUser.id
-          ? withUpdatedTimestamp({ ...vehicle, isArchived: true })
-          : vehicle,
-      ),
-    });
+    const nextStore = archiveVehicleInStore(store, currentUser, vehicleId);
+    if (!nextStore) return;
+    commit(nextStore);
     if (selectedVehicleId === vehicleId) setSelectedVehicleId("");
   }
 
   function unarchiveVehicle(vehicleId: string) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      vehicles: store.vehicles.map((vehicle) =>
-        vehicle.id === vehicleId && vehicle.userId === currentUser.id
-          ? withUpdatedTimestamp({ ...vehicle, isArchived: false })
-          : vehicle,
-      ),
-    });
+    const nextStore = unarchiveVehicleInStore(store, currentUser, vehicleId);
+    if (!nextStore) return;
+    commit(nextStore);
     setSelectedVehicleId(vehicleId);
   }
 
   function deleteVehicle(vehicleId: string) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      vehicles: store.vehicles.map((vehicle) =>
-        vehicle.id === vehicleId && vehicle.userId === currentUser.id ? softDeleteEntity(vehicle) : vehicle,
-      ),
-    });
+    const nextStore = softDeleteVehicleInStore(store, currentUser, vehicleId);
+    if (!nextStore) return;
+    commit(nextStore);
     if (selectedVehicleId === vehicleId) setSelectedVehicleId("");
   }
 
   function restoreVehicle(vehicleId: string) {
-    if (!currentUser) return;
-    commit({
-      ...store,
-      vehicles: store.vehicles.map((vehicle) =>
-        vehicle.id === vehicleId && vehicle.userId === currentUser.id
-          ? restoreEntity({ ...vehicle, isArchived: false })
-          : vehicle,
-      ),
-    });
+    const nextStore = restoreVehicleInStore(store, currentUser, vehicleId);
+    if (!nextStore) return;
+    commit(nextStore);
     setSelectedVehicleId(vehicleId);
   }
 
