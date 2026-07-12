@@ -14,25 +14,33 @@
 
 ## 启动方式
 
-先启动本地后端：
-
-```bash
-docker compose up --build
-```
-
-后端默认监听：
-
-```text
-http://localhost:3001
-```
-
-再启动前端：
+日常开发直接启动：
 
 ```bash
 npm run dev
 ```
 
+该命令会先构建并启动 Docker 后端，再启动 Vite。后端默认监听：
+
+```text
+http://localhost:3001
+```
+
+需要让手机通过局域网访问时：
+
+```bash
+npm run dev:lan
+```
+
 Vite 开发服务器会把 `/api` 请求代理到 `http://localhost:3001`。
+
+只启动或修复后端容器：
+
+```bash
+npm run backend:up
+```
+
+容器配置了 `restart: unless-stopped`。Docker Desktop 或 Docker daemon 重启后，容器会自动恢复；手动执行 `npm run backend:stop` 后则保持停止，直到再次运行 `backend:up`。
 
 ## API
 

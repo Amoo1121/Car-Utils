@@ -4,7 +4,15 @@
 
 ## 数据与同步
 
-网页端数据会先保存在浏览器 `localStorage`。登录后可以在“同步”tab 导出 JSON 备份，也可以导入备份并与本机数据合并。
+本机开发版使用 Docker 中的 SQLite 作为主要持久化存储：
+
+- React 前端通过 `/api/store` 读写本地后端。
+- SQLite 数据库位于 Docker volume `car-utils_car-utils-sqlite`。
+- 浏览器 `localStorage` key `car-utils-store-v1` 继续保留为即时备份。
+- 后端短暂不可用时，页面会降级使用浏览器备份，不会白屏。
+- 后端恢复后，前端会通过版本检查和现有 merge 规则写回 SQLite。
+
+登录后仍可在“同步”tab 导出 JSON 备份，也可以导入备份并与本机数据合并。
 
 当前 Web 版已经加入 CloudBase 云同步 MVP：
 
@@ -17,18 +25,77 @@
 
 手机访问和 CloudBase 同步的完整操作步骤见 [docs/iphone-cloudbase-guide.md](docs/iphone-cloudbase-guide.md)。
 
+Docker + SQLite 的完整说明见 [docs/local-persistence.md](docs/local-persistence.md)。
+
 ## 运行
+
+前置条件：Docker Desktop 必须已经启动。
 
 ```bash
 npm install
 npm run dev
 ```
 
+`npm run dev` 会自动执行 `docker compose up -d --build --wait`，等待本地后端通过健康检查，然后运行 Vite。不需要再单独执行 Docker 命令。
+
 默认地址：
 
 ```text
 http://127.0.0.1:5173/
 ```
+
+后端地址：
+
+```text
+http://127.0.0.1:3001/
+```
+
+启动后可以验证：
+
+```bash
+docker compose ps
+curl http://localhost:3001/api/health
+```
+
+正常结果应看到 `car-utils-server` 状态为 `healthy`，并返回：
+
+```json
+{"ok":true}
+```
+
+如果 SQLite 还没有 Store，但浏览器中有旧数据，打开前端页面后会自动从 `localStorage` 导入。验证是否已经写入 SQLite：
+
+```bash
+curl -i http://localhost:3001/api/store
+```
+
+返回 `HTTP 200` 和 Store JSON 表示持久化成功；返回 `404 {"store":null}` 表示尚未触发导入或当前浏览器没有旧数据。
+
+只启动或修复后端：
+
+```bash
+npm run backend:up
+```
+
+停止后端：
+
+```bash
+npm run backend:stop
+```
+
+不要执行 `docker compose down -v`，`-v` 会删除 SQLite volume。
+
+### 后端不可用提示
+
+如果页面显示“本地后端不可用，当前使用浏览器备份”，依次检查：
+
+```bash
+docker compose ps -a
+curl http://localhost:3001/api/health
+npm run backend:up
+```
+
+容器配置了 `restart: unless-stopped` 和 healthcheck。Docker Desktop 重启后会自动恢复；手动执行过 `npm run backend:stop` 时，需要再次运行 `npm run backend:up`。
 
 ## 手机访问本机开发服务
 
@@ -37,6 +104,8 @@ http://127.0.0.1:5173/
 ```bash
 npm run dev:lan
 ```
+
+该命令也会自动启动 Docker 后端。
 
 终端会输出类似下面的地址：
 
@@ -87,4 +156,4 @@ npx --yes -p @cloudbase/cli tcb hosting deploy dist -e car-utils-sync-d8gc5l3xlb
 
 注意：出门同步请使用 CloudBase 静态托管 HTTPS 地址。更换手机、清理浏览器数据或切换浏览器前，建议仍定期在“同步”页面导出 JSON 备份。
 
-应用仍以浏览器 `localStorage` 作为本地优先缓存，CloudBase 是可选同步层。后续可以继续接入微信小程序登录、车型查询 API 和更细的云端权限规则。
+本机开发环境以 Docker SQLite 为主存储，浏览器 `localStorage` 为本地备份。CloudBase 静态托管页面无法直接访问你 Mac 上的 Docker 后端，因此出门使用时仍依赖浏览器备份与 CloudBase 同步。后续可以继续接入微信小程序登录、车型查询 API 和更细的云端权限规则。

@@ -4,8 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:lan": "vite --host 0.0.0.0",
+    "backend:up": "docker compose up -d --build --wait",
+    "backend:stop": "docker compose stop",
+    "dev": "npm run backend:up && vite",
+    "dev:lan": "npm run backend:up && vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "deploy:cloudbase": "npm run build && npx --yes -p @cloudbase/cli tcb hosting deploy dist -e car-utils-sync-d8gc5l3xlb8350cdf",
     "preview": "vite preview",
