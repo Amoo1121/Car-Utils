@@ -38,11 +38,15 @@ npm run dev
 
 `npm run dev` 会自动执行 `docker compose up -d --build --wait`，等待本地后端通过健康检查，然后运行 Vite。不需要再单独执行 Docker 命令。
 
+Vite 固定使用 5173 端口。如果提示 `Port 5173 is already in use`，说明已有一个前端开发进程正在运行。请回到原终端停止旧进程，或关闭旧进程后重新执行 `npm run dev`。不要同时使用自动切换出的 5174 等端口，因为不同端口拥有相互隔离的浏览器 `localStorage`。
+
 默认地址：
 
 ```text
-http://127.0.0.1:5173/
+http://localhost:5173/
 ```
+
+日常请固定使用这个地址。`localhost`、`127.0.0.1` 和不同端口都属于不同的浏览器来源，彼此不能读取对方的 `localStorage` 备份。
 
 后端地址：
 
@@ -94,6 +98,8 @@ docker compose ps -a
 curl http://localhost:3001/api/health
 npm run backend:up
 ```
+
+如果健康检查正常但页面仍显示不可用，请确认浏览器打开的是 `http://localhost:5173/`，然后刷新页面。还可以在浏览器开发者工具 Console 中检查是否有 `/api/store` 请求错误。
 
 容器配置了 `restart: unless-stopped` 和 healthcheck。Docker Desktop 重启后会自动恢复；手动执行过 `npm run backend:stop` 时，需要再次运行 `npm run backend:up`。
 

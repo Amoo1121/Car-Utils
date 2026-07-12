@@ -17,7 +17,7 @@ export class HttpStoreRepository implements RemoteStoreRepository {
   ) {}
 
   async getStore() {
-    const response = await this.fetcher(this.resolveUrl("/api/store"), {
+    const response = await this.request(this.resolveUrl("/api/store"), {
       method: "GET",
       headers: {
         Accept: "application/json",
@@ -51,7 +51,7 @@ export class HttpStoreRepository implements RemoteStoreRepository {
       headers.set("If-None-Match", "*");
     }
 
-    const response = await this.fetcher(this.resolveUrl("/api/store"), {
+    const response = await this.request(this.resolveUrl("/api/store"), {
       method: "PUT",
       headers,
       body: JSON.stringify(normalizedStore),
@@ -74,6 +74,11 @@ export class HttpStoreRepository implements RemoteStoreRepository {
   private resolveUrl(path: string) {
     const normalizedBaseUrl = this.baseUrl.replace(/\/$/, "");
     return normalizedBaseUrl ? `${normalizedBaseUrl}${path}` : path;
+  }
+
+  private request(input: RequestInfo | URL, init?: RequestInit) {
+    const fetcher = this.fetcher;
+    return fetcher(input, init);
   }
 }
 
