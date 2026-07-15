@@ -112,6 +112,7 @@ import {
   type StationSummary,
 } from "./domain/analytics/fuelAnalytics";
 import { calculateWashOverview, calculateWashProductInventory } from "./domain/analytics/washAnalytics";
+import { FuelStationField } from "./features/fuel/FuelStationField";
 
 type AppTab = "overview" | "fuel" | "wash" | "vehicles" | "sync";
 type FuelSubTab = "analytics" | "record" | "history";
@@ -460,6 +461,7 @@ export function App() {
                 <FuelTab
                   vehicle={activeVehicle}
                   fuelRecords={fuelRecords}
+                  stationRecords={userFuelRecords}
                   deletedFuelRecords={deletedFuelRecords}
                   onAdd={addFuelRecord}
                   onUpdate={updateFuelRecord}
@@ -638,6 +640,7 @@ function ActiveVehicleSwitcher({
 function FuelTab({
   vehicle,
   fuelRecords,
+  stationRecords,
   deletedFuelRecords,
   onAdd,
   onUpdate,
@@ -646,6 +649,7 @@ function FuelTab({
 }: {
   vehicle: Vehicle;
   fuelRecords: FuelRecord[];
+  stationRecords: FuelRecord[];
   deletedFuelRecords: FuelRecord[];
   onAdd: (record: Omit<FuelRecord, "id" | "userId">) => void;
   onUpdate: (recordId: string, record: Omit<FuelRecord, "id" | "userId">) => void;
@@ -681,7 +685,9 @@ function FuelTab({
         ]}
         onChange={(tab) => setActiveFuelTab(tab as FuelSubTab)}
       />
-      {activeFuelTab === "record" && <FuelForm vehicle={vehicle} onAdd={onAdd} />}
+      {activeFuelTab === "record" && (
+        <FuelForm fuelRecords={stationRecords} vehicle={vehicle} onAdd={onAdd} />
+      )}
       {activeFuelTab === "analytics" && (
         <>
           <FuelFilters
@@ -709,6 +715,7 @@ function FuelTab({
           emptyText="没有符合筛选条件的加油记录"
           deletedFuelRecords={filteredDeletedFuelRecords}
           fuelRecords={filteredFuelRecords}
+          stationRecords={stationRecords}
           limit={50}
           onDelete={onDelete}
           onRestore={onRestore}
@@ -1833,9 +1840,11 @@ function StationSummaryList({ summaries }: { summaries: StationSummary[] }) {
 }
 
 function FuelForm({
+  fuelRecords,
   vehicle,
   onAdd,
 }: {
+  fuelRecords: FuelRecord[];
   vehicle: Vehicle;
   onAdd: (record: Omit<FuelRecord, "id" | "userId">) => void;
 }) {
@@ -1906,10 +1915,12 @@ function FuelForm({
             />
           </label>
         ) : (
-          <label>
-            加油站
-            <input value={form.station} onChange={(event) => setForm({ ...form, station: event.target.value })} />
-          </label>
+          <FuelStationField
+            fuelRecords={fuelRecords}
+            vehicleId={vehicle.id}
+            value={form.station}
+            onChange={(station) => setForm({ ...form, station })}
+          />
         )}
       </div>
       <div className="two-cols">
@@ -1937,10 +1948,12 @@ function FuelForm({
         </label>
       </div>
       {form.fuelGrade === "其他" && (
-        <label>
-          加油站
-          <input value={form.station} onChange={(event) => setForm({ ...form, station: event.target.value })} />
-        </label>
+        <FuelStationField
+          fuelRecords={fuelRecords}
+          vehicleId={vehicle.id}
+          value={form.station}
+          onChange={(station) => setForm({ ...form, station })}
+        />
       )}
       <div className="two-cols">
         <label>
@@ -2789,6 +2802,7 @@ function FuelRecordsPanel({
   deletedFuelRecords = [],
   emptyText = "暂无加油记录",
   fuelRecords,
+  stationRecords,
   limit,
   onDelete,
   onRestore,
@@ -2797,6 +2811,7 @@ function FuelRecordsPanel({
   deletedFuelRecords?: FuelRecord[];
   emptyText?: string;
   fuelRecords: FuelRecord[];
+  stationRecords?: FuelRecord[];
   limit: number;
   onDelete?: (recordId: string) => void;
   onRestore?: (recordId: string) => void;
@@ -2855,6 +2870,7 @@ function FuelRecordsPanel({
             <li key={record.id}>
               {editingId === record.id && onUpdate && !isDeletedView ? (
                 <FuelRecordEditor
+                  fuelRecords={stationRecords ?? fuelRecords}
                   record={record}
                   onCancel={() => setEditingId("")}
                   onSave={(nextRecord) => {
@@ -2901,10 +2917,12 @@ function FuelRecordsPanel({
 }
 
 function FuelRecordEditor({
+  fuelRecords,
   record,
   onCancel,
   onSave,
 }: {
+  fuelRecords: FuelRecord[];
   record: FuelRecord;
   onCancel: () => void;
   onSave: (record: Omit<FuelRecord, "id" | "userId">) => void;
@@ -2961,17 +2979,21 @@ function FuelRecordEditor({
             />
           </label>
         ) : (
-          <label>
-            加油站
-            <input value={draft.station} onChange={(event) => setDraft({ ...draft, station: event.target.value })} />
-          </label>
+          <FuelStationField
+            fuelRecords={fuelRecords}
+            vehicleId={record.vehicleId}
+            value={draft.station}
+            onChange={(station) => setDraft({ ...draft, station })}
+          />
         )}
       </div>
       {draft.fuelGrade === "其他" && (
-        <label>
-          加油站
-          <input value={draft.station} onChange={(event) => setDraft({ ...draft, station: event.target.value })} />
-        </label>
+        <FuelStationField
+          fuelRecords={fuelRecords}
+          vehicleId={record.vehicleId}
+          value={draft.station}
+          onChange={(station) => setDraft({ ...draft, station })}
+        />
       )}
       <div className="two-cols">
         <label>
