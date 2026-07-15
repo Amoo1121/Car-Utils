@@ -26,6 +26,22 @@ test("GET /api/health returns ok", async (t) => {
   assert.deepEqual(response.json(), { ok: true });
 });
 
+test("OPTIONS /api/store exposes version and optimistic-lock headers", async (t) => {
+  const { directory, databasePath } = createTempDatabasePath();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+
+  const app = createServer({ databasePath, logger: false });
+  t.after(async () => app.close());
+
+  const response = await app.inject({ method: "OPTIONS", url: "/api/store" });
+
+  assert.equal(response.statusCode, 204);
+  assert.match(String(response.headers["access-control-allow-headers"]), /If-Match/);
+  assert.match(String(response.headers["access-control-allow-headers"]), /If-None-Match/);
+  assert.match(String(response.headers["access-control-expose-headers"]), /X-Car-Utils-Store-Version/);
+  assert.match(String(response.headers["access-control-expose-headers"]), /X-Car-Utils-Updated-At/);
+});
+
 test("PUT /api/store then GET /api/store reads back the store", async (t) => {
   const { directory, databasePath } = createTempDatabasePath();
   t.after(() => rmSync(directory, { recursive: true, force: true }));

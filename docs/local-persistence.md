@@ -34,6 +34,24 @@ npm run dev:lan
 
 Vite 开发服务器会把 `/api` 请求代理到 `http://localhost:3001`。
 
+### 自定义端口
+
+在项目根目录复制环境变量示例：
+
+```bash
+cp .env.example .env
+```
+
+例如将前端改到 5180、Docker 暴露的 API 改到 3101：
+
+```env
+CAR_UTILS_WEB_PORT=5180
+CAR_UTILS_API_PORT=3101
+CAR_UTILS_API_INTERNAL_PORT=3001
+```
+
+修改后重新执行 `npm run dev`。Vite `/api` 代理和 Docker 端口映射会读取同一份配置。容器内部端口通常保持 3001 即可。
+
 只启动或修复后端容器：
 
 ```bash

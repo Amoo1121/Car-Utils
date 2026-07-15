@@ -48,6 +48,22 @@ http://localhost:5173/
 
 日常请固定使用这个地址。`localhost`、`127.0.0.1` 和不同端口都属于不同的浏览器来源，彼此不能读取对方的 `localStorage` 备份。
 
+### 自定义端口
+
+复制环境变量示例，然后修改需要的端口：
+
+```bash
+cp .env.example .env
+```
+
+```env
+CAR_UTILS_WEB_PORT=5180
+CAR_UTILS_API_PORT=3101
+CAR_UTILS_API_INTERNAL_PORT=3001
+```
+
+重新执行 `npm run dev` 后，前端会使用 `http://localhost:5180/`，Docker 后端会暴露在 `http://localhost:3101/`，Vite 的 `/api` 代理也会自动指向新端口。修改端口后请固定使用新地址，避免把浏览器备份分散到多个来源。
+
 后端地址：
 
 ```text

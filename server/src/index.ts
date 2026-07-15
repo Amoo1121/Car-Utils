@@ -18,8 +18,9 @@ export function createServer(options: CreateServerOptions = {}) {
 
   app.addHook("onRequest", async (request, reply) => {
     reply.header("Access-Control-Allow-Origin", process.env.CORS_ORIGIN || "*");
-    reply.header("Access-Control-Allow-Headers", "Content-Type");
+    reply.header("Access-Control-Allow-Headers", "Content-Type, If-Match, If-None-Match, X-Car-Utils-Expected-Version");
     reply.header("Access-Control-Allow-Methods", "GET,PUT,OPTIONS");
+    reply.header("Access-Control-Expose-Headers", "X-Car-Utils-Store-Version, X-Car-Utils-Updated-At");
 
     if (request.method === "OPTIONS") {
       return reply.code(204).send();
