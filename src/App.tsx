@@ -6,14 +6,11 @@ import {
   Droplets,
   Fuel,
   Info,
-  LogOut,
-  Menu,
   Plus,
   RefreshCw,
   Sparkles,
   Smartphone,
   Upload,
-  UserRound,
   Wrench,
 } from "lucide-react";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
@@ -113,8 +110,8 @@ import {
 } from "./domain/analytics/fuelAnalytics";
 import { calculateWashOverview, calculateWashProductInventory } from "./domain/analytics/washAnalytics";
 import { FuelStationField } from "./features/fuel/FuelStationField";
+import { AppNavigation, appTabTitles, type AppTab } from "./app/navigation/AppNavigation";
 
-type AppTab = "overview" | "fuel" | "wash" | "vehicles" | "sync";
 type FuelSubTab = "analytics" | "record" | "history";
 type WashSubTab = "record" | "warehouse" | "history";
 
@@ -162,11 +159,11 @@ function PersistenceStatusBanner({ snapshot }: { snapshot: PersistenceStatusSnap
 function getPersistenceStatusContent(snapshot: PersistenceStatusSnapshot) {
   switch (snapshot.status) {
     case "backend_connected":
-      return { tone: "ok", label: "本地后端已连接，正在使用 SQLite 数据源。" };
+      return { tone: "ok", label: "SQLite 已连接" };
     case "backend_empty_importing_legacy":
       return { tone: "warning", label: "本地后端为空，正在导入浏览器旧数据..." };
     case "backend_persisted":
-      return { tone: "ok", label: "数据已保存到本地后端，并保留浏览器备份。" };
+      return { tone: "ok", label: "SQLite 已保存，浏览器备份已更新" };
     case "backend_unavailable_using_local_backup":
       return { tone: "warning", label: "本地后端不可用，当前使用浏览器备份。" };
     case "save_failed_local_backup_only":
@@ -183,6 +180,7 @@ export function App() {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<AppTab>("overview");
   const [navCollapsed, setNavCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const currentUser = store.users.find((user) => user.id === store.currentUserId);
 
   useEffect(() => {
@@ -423,12 +421,15 @@ export function App() {
 
   return (
     <main className={navCollapsed ? "app-shell nav-collapsed" : "app-shell"}>
-      <TabBar
+      <AppNavigation
         activeTab={activeTab}
         collapsed={navCollapsed}
+        mobileOpen={mobileNavOpen}
         onChange={setActiveTab}
+        onCloseMobile={() => setMobileNavOpen(false)}
         onLogout={logout}
-        onToggle={() => setNavCollapsed((current) => !current)}
+        onOpenMobile={() => setMobileNavOpen(true)}
+        onToggleCollapsed={() => setNavCollapsed((current) => !current)}
         userName={currentUser.name}
       />
 
@@ -436,18 +437,20 @@ export function App() {
         <div className="content">
           <header className="page-header">
             <div>
-              <p className="eyebrow">Car Utils</p>
-              <h1>{getTabTitle(activeTab)}</h1>
+              <p className="eyebrow">Workspace</p>
+              <h1>{appTabTitles[activeTab]}</h1>
             </div>
-            <ActiveVehicleSwitcher
-              activeTab={activeTab}
-              activeVehicleId={activeVehicleId}
-              onManageVehicles={() => setActiveTab("vehicles")}
-              onSelect={setSelectedVehicleId}
-              vehicles={vehicleSwitcherVehicles}
-            />
+            <div className="page-header-actions">
+              <ActiveVehicleSwitcher
+                activeTab={activeTab}
+                activeVehicleId={activeVehicleId}
+                onManageVehicles={() => setActiveTab("vehicles")}
+                onSelect={setSelectedVehicleId}
+                vehicles={vehicleSwitcherVehicles}
+              />
+              {persistenceStatus && <PersistenceStatusBanner snapshot={persistenceStatus} />}
+            </div>
           </header>
-          {persistenceStatus && <PersistenceStatusBanner snapshot={persistenceStatus} />}
 
           {activeVehicle || activeTab === "vehicles" || activeTab === "sync" ? (
             <>
@@ -526,82 +529,6 @@ export function App() {
   );
 }
 
-function getTabTitle(tab: AppTab) {
-  const titles: Record<AppTab, string> = {
-    overview: "车辆概览",
-    fuel: "加油记录",
-    wash: "洗车护理",
-    vehicles: "车辆管理",
-    sync: "数据同步",
-  };
-  return titles[tab];
-}
-
-function TabBar({
-  activeTab,
-  collapsed,
-  onChange,
-  onLogout,
-  onToggle,
-  userName,
-}: {
-  activeTab: AppTab;
-  collapsed: boolean;
-  onChange: (tab: AppTab) => void;
-  onLogout: () => void;
-  onToggle: () => void;
-  userName: string;
-}) {
-  const tabs: { id: AppTab; label: string; icon: React.ReactNode }[] = [
-    { id: "overview", label: "概览", icon: <Car size={16} /> },
-    { id: "fuel", label: "加油", icon: <Fuel size={16} /> },
-    { id: "wash", label: "洗车", icon: <Sparkles size={16} /> },
-    { id: "vehicles", label: "车辆", icon: <Wrench size={16} /> },
-    { id: "sync", label: "同步", icon: <Cloud size={16} /> },
-  ];
-
-  return (
-    <aside className={collapsed ? "app-nav collapsed" : "app-nav"}>
-      <div className="nav-top">
-        <button className="nav-toggle" type="button" aria-label={collapsed ? "展开导航" : "收起导航"} onClick={onToggle}>
-          <Menu size={19} />
-        </button>
-        {!collapsed && (
-          <div>
-            <p className="eyebrow">Car Utils</p>
-            <strong>车辆生活账本</strong>
-          </div>
-        )}
-      </div>
-      <nav className="nav-tabs" aria-label="功能导航">
-        {tabs.map((tab) => (
-          <button
-            aria-label={tab.label}
-            className={activeTab === tab.id ? "nav-tab active" : "nav-tab"}
-            key={tab.id}
-            title={collapsed ? tab.label : undefined}
-            type="button"
-            onClick={() => onChange(tab.id)}
-          >
-            {tab.icon}
-            {!collapsed && <span>{tab.label}</span>}
-          </button>
-        ))}
-      </nav>
-      <div className="nav-user">
-        <div className="nav-user-chip" title={userName}>
-          <UserRound size={18} />
-          {!collapsed && <span>{userName}</span>}
-        </div>
-        <button className="nav-tab" title={collapsed ? "退出登录" : undefined} type="button" onClick={onLogout}>
-          <LogOut size={16} />
-          {!collapsed && <span>退出登录</span>}
-        </button>
-      </div>
-    </aside>
-  );
-}
-
 function ActiveVehicleSwitcher({
   activeTab,
   activeVehicleId,
@@ -620,8 +547,11 @@ function ActiveVehicleSwitcher({
 
   return (
     <div className="vehicle-switcher">
+      <div className="vehicle-context-icon" aria-hidden="true">
+        <Car size={21} />
+      </div>
       <label>
-        当前车辆
+        <span>当前车辆</span>
         <select value={activeVehicleId} onChange={(event) => onSelect(event.target.value)}>
           {vehicles.map((vehicle) => (
             <option key={vehicle.id} value={vehicle.id}>
@@ -630,7 +560,8 @@ function ActiveVehicleSwitcher({
           ))}
         </select>
       </label>
-      <button className="secondary-button" type="button" onClick={onManageVehicles}>
+      <button className="ghost-button vehicle-manage-button" type="button" onClick={onManageVehicles}>
+        <Wrench size={16} />
         管理车辆
       </button>
     </div>
@@ -686,7 +617,7 @@ function FuelTab({
         onChange={(tab) => setActiveFuelTab(tab as FuelSubTab)}
       />
       {activeFuelTab === "record" && (
-        <FuelForm fuelRecords={stationRecords} vehicle={vehicle} onAdd={onAdd} />
+        <FuelRecordWorkspace fuelRecords={fuelRecords} stationRecords={stationRecords} vehicle={vehicle} onAdd={onAdd} />
       )}
       {activeFuelTab === "analytics" && (
         <>
@@ -724,6 +655,82 @@ function FuelTab({
         </>
       )}
     </section>
+  );
+}
+
+function FuelRecordWorkspace({
+  fuelRecords,
+  stationRecords,
+  vehicle,
+  onAdd,
+}: {
+  fuelRecords: FuelRecord[];
+  stationRecords: FuelRecord[];
+  vehicle: Vehicle;
+  onAdd: (record: Omit<FuelRecord, "id" | "userId">) => void;
+}) {
+  const monthKey = today().slice(0, 7);
+  const monthRecords = useMemo(
+    () => fuelRecords.filter((record) => record.date.startsWith(monthKey)),
+    [fuelRecords, monthKey],
+  );
+  const monthSummary = useMemo(() => {
+    const cost = monthRecords.reduce((sum, record) => sum + recordCost(record), 0);
+    const volume = monthRecords.reduce((sum, record) => sum + record.volume, 0);
+    return {
+      count: monthRecords.length,
+      cost,
+      volume,
+      averageUnitPrice: volume > 0 ? cost / volume : 0,
+    };
+  }, [monthRecords]);
+  const insights = useMemo(
+    () => calculateFuelInsights(vehicle, fuelRecords),
+    [fuelRecords, vehicle.energyType, vehicle.tankSize],
+  );
+
+  return (
+    <div className="fuel-record-workspace">
+      <FuelForm fuelRecords={stationRecords} vehicle={vehicle} onAdd={onAdd} />
+      <div className="fuel-entry-context">
+        <section className="panel fuel-month-panel">
+          <div className="panel-heading-row">
+            <div>
+              <div className="section-title compact">
+                <Fuel size={17} />
+                <span>本月概览</span>
+              </div>
+              <p className="filter-count">{monthKey.replace("-", " 年 ")} 月</p>
+            </div>
+          </div>
+          <div className="fuel-quick-stats">
+            <QuickStat label="加油次数" value={`${monthSummary.count} 次`} />
+            <QuickStat label="总花费" value={money(monthSummary.cost)} />
+            <QuickStat label="总加油量" value={`${number(monthSummary.volume, 1)} L`} />
+            <QuickStat label="实付均价" value={`${number(monthSummary.averageUnitPrice, 2)} 元/L`} />
+          </div>
+        </section>
+
+        <section className="panel fuel-quick-trend">
+          <div className="section-title">
+            <Droplets size={17} />
+            <span>油费趋势</span>
+          </div>
+          <MiniLineChart title="单次实付金额" unit="元" points={insights.costPoints} digits={0} />
+        </section>
+
+        <FuelRecordsPanel fuelRecords={fuelRecords} limit={4} />
+      </div>
+    </div>
+  );
+}
+
+function QuickStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="fuel-quick-stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -1295,7 +1302,7 @@ function VehicleForm({
   }
 
   return (
-    <form className="panel stack" onSubmit={submit}>
+    <form className="panel stack fuel-entry-form" onSubmit={submit}>
       <div className="section-title">
         <Plus size={17} />
         <span>{mode === "edit" ? "编辑车辆" : "添加车辆"}</span>
@@ -1998,7 +2005,7 @@ function FuelForm({
         />
         加满
       </label>
-      <button className="primary-button" type="submit">
+      <button className="primary-button fuel-save-button" type="submit">
         保存加油记录 · {money(paidAmount || 0)}
       </button>
     </form>
