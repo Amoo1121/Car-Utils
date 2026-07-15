@@ -29,6 +29,8 @@
 
 Docker + SQLite 的完整说明见 [docs/local-persistence.md](docs/local-persistence.md)。
 
+已确认的响应式前端视觉稿和实现规范见 [docs/design/design-system.md](docs/design/design-system.md)。
+
 ## 运行
 
 前置条件：Docker Desktop 必须已经启动。
