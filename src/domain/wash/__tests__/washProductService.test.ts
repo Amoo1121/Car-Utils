@@ -3,6 +3,7 @@ import type { Store, User, WashProduct, WashProductPurchase } from "../../store/
 import {
   addWashProductPurchaseToStore,
   addWashProductToStore,
+  applyWashProductPresetToDraft,
   buildWashProductFromUsageDraft,
   buildWashProductSubmission,
   createWashProductDraftFromProduct,
@@ -12,6 +13,7 @@ import {
   updateWashProductInStore,
   type WashProductDraft,
 } from "../washProductService";
+import { getWashProductPreset } from "../washProductCatalog";
 
 const currentUser: User = {
   id: "user_1",
@@ -152,6 +154,25 @@ describe("washProductService", () => {
     });
   });
 
+  it("applies a catalog preset and keeps its identity in the stored product", () => {
+    const preset = getWashProductPreset("carpro-reset")!;
+    const draft = applyWashProductPresetToDraft(createDraft(), preset);
+    const submission = buildWashProductSubmission({ mode: "add", productId: "" }, draft, undefined);
+
+    expect(draft).toMatchObject({
+      presetId: "carpro-reset",
+      name: "Reset Intensive Car Shampoo",
+      brand: "CARPRO 卡普",
+      category: "正洗液",
+      capacity: "500",
+      capacityUnit: "ml",
+    });
+    expect(submission).toMatchObject({
+      type: "add",
+      product: { presetId: "carpro-reset" },
+    });
+  });
+
   it("builds warehouse products from wash usage drafts", () => {
     expect(
       buildWashProductFromUsageDraft(
@@ -206,6 +227,7 @@ function buildProductInput(overrides: Partial<Omit<WashProduct, "id" | "userId">
 
 function createDraft(): WashProductDraft {
   return {
+    presetId: "",
     name: "正洗液",
     brand: "NewBrand",
     category: "正洗液",

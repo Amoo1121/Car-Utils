@@ -8,10 +8,12 @@ import {
   withUpdatedTimestamp,
 } from "../store/utils";
 import type { WashProductUsageDraft } from "./washService";
+import type { WashProductPreset } from "./washProductCatalog";
 
 export type WashProductInput = Omit<WashProduct, "id" | "userId">;
 
 export type WashProductDraft = {
+  presetId: string;
   name: string;
   brand: string;
   category: string;
@@ -40,6 +42,7 @@ export type WashProductMutationOptions = {
 
 export function createEmptyWashProductWarehouseDraft(): WashProductDraft {
   return {
+    presetId: "",
     name: "",
     brand: "",
     category: "预洗液",
@@ -48,6 +51,18 @@ export function createEmptyWashProductWarehouseDraft(): WashProductDraft {
     capacity: "",
     capacityUnit: "ml",
     note: "",
+  };
+}
+
+export function applyWashProductPresetToDraft(draft: WashProductDraft, preset: WashProductPreset): WashProductDraft {
+  return {
+    ...draft,
+    presetId: preset.id,
+    name: preset.name,
+    brand: preset.brand,
+    category: preset.category,
+    capacity: String(preset.defaultCapacity),
+    capacityUnit: preset.capacityUnit,
   };
 }
 
@@ -73,6 +88,7 @@ export function hasPurchaseDetails(purchase: WashProductPurchase) {
 export function createWashProductDraftFromProduct(product: WashProduct, today: string): WashProductDraft {
   const latestPurchase = product.purchases.at(-1);
   return {
+    presetId: product.presetId ?? "",
     name: product.name,
     brand: product.brand ?? "",
     category: product.category,
@@ -87,6 +103,7 @@ export function createWashProductDraftFromProduct(product: WashProduct, today: s
 export function createWashProductReplenishDraftFromProduct(product: WashProduct, today: string): WashProductDraft {
   const latestPurchase = product.purchases.at(-1);
   return {
+    presetId: product.presetId ?? "",
     name: product.name,
     brand: product.brand ?? "",
     category: product.category,
@@ -129,6 +146,7 @@ export function buildWashProductSubmission(
       productId: currentProduct.id,
       product: {
         type: "washProduct",
+        presetId: draft.presetId || undefined,
         name: draft.name.trim(),
         brand: draft.brand.trim() || undefined,
         category: draft.category,
@@ -142,6 +160,7 @@ export function buildWashProductSubmission(
     type: "add",
     product: {
       type: "washProduct",
+      presetId: draft.presetId || undefined,
       name: draft.name.trim(),
       brand: draft.brand.trim() || undefined,
       category: draft.category,

@@ -126,6 +126,7 @@ export type WashProductPurchase = {
 export type WashProduct = BaseEntity & {
   type?: "washProduct";
   userId: string;
+  presetId?: string;
   name: string;
   brand?: string;
   category: string;

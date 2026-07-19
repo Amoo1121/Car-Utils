@@ -91,6 +91,7 @@ import {
 import {
   addWashProductPurchaseToStore,
   addWashProductToStore,
+  applyWashProductPresetToDraft,
   buildWashProductFromUsageDraft,
   buildWashProductSubmission,
   createEmptyWashProductWarehouseDraft,
@@ -102,6 +103,7 @@ import {
   type WashProductDraft,
   type WashProductFormMode,
 } from "./domain/wash/washProductService";
+import { getWashProductPreset } from "./domain/wash/washProductCatalog";
 import {
   calculateFuelInsights,
   calculateFuelOverview,
@@ -110,6 +112,7 @@ import {
 } from "./domain/analytics/fuelAnalytics";
 import { calculateWashOverview, calculateWashProductInventory } from "./domain/analytics/washAnalytics";
 import { FuelStationField } from "./features/fuel/FuelStationField";
+import { WashProductPresetImage, WashProductPresetPicker } from "./features/wash/WashProductPresetPicker";
 import { AppNavigation, appTabTitles, type AppTab } from "./app/navigation/AppNavigation";
 
 type FuelSubTab = "analytics" | "record" | "history";
@@ -1638,6 +1641,9 @@ const productCategoryOptions = [
   "预洗液",
   "正洗液",
   "洗车液",
+  "多用途清洁",
+  "虫胶清洁",
+  "铁粉去除",
   "轮毂清洁",
   "轮胎养护",
   "玻璃清洁",
@@ -2164,13 +2170,15 @@ function WashRecordFields({
     }
 
     const latestPurchase = selectedProduct.purchases.at(-1);
+    const preset = getWashProductPreset(selectedProduct.presetId);
     updateProduct(productRowId, {
       productId: selectedProduct.id,
       name: selectedProduct.name,
       category: selectedProduct.category,
-      purchasePrice: latestPurchase ? String(latestPurchase.purchasePrice) : "",
-      capacity: latestPurchase ? String(latestPurchase.capacity) : "",
+      purchasePrice: latestPurchase?.purchasePrice != null ? String(latestPurchase.purchasePrice) : "",
+      capacity: latestPurchase?.capacity != null ? String(latestPurchase.capacity) : "",
       capacityUnit: latestPurchase?.capacityUnit ?? "ml",
+      dilutionRatio: preset?.defaultDilutionRatio ?? "",
     });
   }
 
@@ -2580,6 +2588,12 @@ function WashProductWarehouse({
         <span>洗车耗材仓库</span>
       </div>
       <form className="stack warehouse-form" onSubmit={submit}>
+        {formMode.mode === "add" && (
+          <WashProductPresetPicker
+            selectedPresetId={draft.presetId}
+            onSelect={(preset) => setDraft(applyWashProductPresetToDraft(draft, preset))}
+          />
+        )}
         <label>
           操作
           <select
@@ -2603,17 +2617,17 @@ function WashProductWarehouse({
         <div className="two-cols">
           <label>
             名称
-            <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+            <input value={draft.name} onChange={(event) => setDraft({ ...draft, presetId: "", name: event.target.value })} />
           </label>
           <label>
             品牌
-            <input value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value })} />
+            <input value={draft.brand} onChange={(event) => setDraft({ ...draft, presetId: "", brand: event.target.value })} />
           </label>
         </div>
         <div className="two-cols">
           <label>
             类型
-            <select value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })}>
+            <select value={draft.category} onChange={(event) => setDraft({ ...draft, presetId: "", category: event.target.value })}>
               {productCategoryOptions.map((category) => (
                 <option key={category}>{category}</option>
               ))}
@@ -2718,21 +2732,26 @@ function WashProductWarehouse({
           filteredProducts.map((product) => {
             const stats = calculateWashProductInventory(product, washRecords);
             const latestPurchase = product.purchases.at(-1);
+            const preset = getWashProductPreset(product.presetId);
             return (
               <div className="warehouse-row" key={product.id}>
-                <div>
-                  <strong>{product.name}</strong>
-                  <span>
-                    {product.brand ? `${product.brand} · ` : ""}
-                    {product.category} · {product.purchases.length} 次购买
-                  </span>
-                  {latestPurchase && (
+                <div className="warehouse-product-summary">
+                  {preset && <WashProductPresetImage alt={`${product.brand ?? ""} ${product.name}`} src={preset.imageUrl} />}
+                  <div>
+                    <strong>{product.name}</strong>
                     <span>
-                      最近：{latestPurchase.date}
-                      {latestPurchase.purchasePrice != null ? ` · ${money(latestPurchase.purchasePrice)}` : ""}
-                      {latestPurchase.capacity != null ? ` / ${latestPurchase.capacity}${latestPurchase.capacityUnit ?? ""}` : ""}
+                      {product.brand ? `${product.brand} · ` : ""}
+                      {product.category} · {product.purchases.length} 次购买
                     </span>
-                  )}
+                    {preset?.defaultDilutionRatio && <span>建议：{preset.defaultDilutionRatio}</span>}
+                    {latestPurchase && (
+                      <span>
+                        最近：{latestPurchase.date}
+                        {latestPurchase.purchasePrice != null ? ` · ${money(latestPurchase.purchasePrice)}` : ""}
+                        {latestPurchase.capacity != null ? ` / ${latestPurchase.capacity}${latestPurchase.capacityUnit ?? ""}` : ""}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="warehouse-stock">
                   {stats.hasCapacity ? (
