@@ -13,7 +13,7 @@ import {
   Upload,
   Wrench,
 } from "lucide-react";
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   DATA_SCHEMA_VERSION,
   countStoreItems,
@@ -82,6 +82,8 @@ import {
   createEmptyWashProductUsageDraft,
   createWashDraft,
   estimateWashProductCost,
+  getDefaultWashStepForProductCategory,
+  getSuggestedWashUsageUnit,
   resolveWashCost,
   restoreWashRecordInStore,
   softDeleteWashRecordInStore,
@@ -114,6 +116,7 @@ import {
 import { calculateWashOverview, calculateWashProductInventory } from "./domain/analytics/washAnalytics";
 import { FuelStationField } from "./features/fuel/FuelStationField";
 import { WashProductPresetImage, WashProductPresetPicker } from "./features/wash/WashProductPresetPicker";
+import { WashProductMetadataLookup } from "./features/wash/WashProductMetadataLookup";
 import { AppNavigation, appTabTitles, type AppTab } from "./app/navigation/AppNavigation";
 
 type FuelSubTab = "analytics" | "record" | "history";
@@ -1648,6 +1651,7 @@ const productCategoryOptions = [
   "轮毂清洁",
   "轮胎养护",
   "玻璃清洁",
+  "玻璃去油膜",
   "内饰清洁",
   "蜡/封体",
   "毛巾/工具",
@@ -1879,7 +1883,7 @@ function FuelForm({
   }
 
   return (
-    <form className="panel stack" onSubmit={submit}>
+    <form className="panel stack wash-record-form" onSubmit={submit}>
       <div className="section-title">
         <Fuel size={17} />
         <span>记录加油</span>
@@ -2151,6 +2155,41 @@ function WashRecordFields({
 }) {
   const isDiy = draft.washType === "diy";
   const resolvedCost = resolveWashCost(draft);
+  const [newProductId, setNewProductId] = useState<string | null>(null);
+  const newProductSelectRef = useRef<HTMLSelectElement | null>(null);
+  const warehouseProductGroups = useMemo(() => {
+    const groups = new Map<string, WashProduct[]>();
+
+    washProducts.forEach((product) => {
+      const category = product.category || "其他";
+      groups.set(category, [...(groups.get(category) ?? []), product]);
+    });
+
+    return [...groups.entries()]
+      .sort(([left], [right]) => left.localeCompare(right, "zh-CN"))
+      .map(([category, products]) => ({
+        category,
+        products: products.sort((left, right) => left.name.localeCompare(right.name, "zh-CN")),
+      }));
+  }, [washProducts]);
+
+  useEffect(() => {
+    if (!newProductId) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      newProductSelectRef.current?.focus();
+      newProductSelectRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      setNewProductId(null);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [draft.products, newProductId]);
+
+  function addProduct() {
+    const product = createEmptyWashProductUsageDraft();
+    setNewProductId(product.id);
+    onChange({ ...draft, products: [product, ...draft.products] });
+  }
 
   function updateProduct(productId: string, nextProduct: Partial<WashProductUsageDraft>) {
     onChange({
@@ -2174,13 +2213,16 @@ function WashRecordFields({
 
     const latestPurchase = selectedProduct.purchases.at(-1);
     const preset = getWashProductPreset(selectedProduct.presetId);
+    const capacityUnit = latestPurchase?.capacityUnit ?? "ml";
     updateProduct(productRowId, {
       productId: selectedProduct.id,
       name: selectedProduct.name,
       category: selectedProduct.category,
       purchasePrice: latestPurchase?.purchasePrice != null ? String(latestPurchase.purchasePrice) : "",
       capacity: latestPurchase?.capacity != null ? String(latestPurchase.capacity) : "",
-      capacityUnit: latestPurchase?.capacityUnit ?? "ml",
+      capacityUnit,
+      usedUnit: getSuggestedWashUsageUnit(capacityUnit),
+      step: getDefaultWashStepForProductCategory(selectedProduct.category),
       dilutionRatio: preset?.defaultDilutionRatio ?? "",
     });
   }
@@ -2273,44 +2315,74 @@ function WashRecordFields({
             <button
               className="text-button"
               type="button"
-              onClick={() => onChange({ ...draft, products: [...draft.products, createEmptyWashProductUsageDraft()] })}
+              onClick={addProduct}
             >
               <Plus size={14} aria-hidden="true" />
-              添加耗材
+              添加一种耗材
             </button>
           </div>
           {draft.products.length === 0 ? (
             <p className="wash-products-empty">本次没有需要记录的耗材，可以直接保存。</p>
           ) : (
             <div className="product-usage-list">
-              {draft.products.map((product) => {
+              {draft.products.map((product, index) => {
                 const estimatedCost = estimateWashProductCost(product);
                 const selectedWarehouseProduct = washProducts.find(
                   (warehouseProduct) => warehouseProduct.id === product.productId,
                 );
+                const selectedWarehousePreset = getWashProductPreset(selectedWarehouseProduct?.presetId);
+                const selectedWarehouseImage = selectedWarehousePreset?.imageUrl ?? selectedWarehouseProduct?.imageUrl;
                 return (
-                  <div className="product-usage-row" key={product.id}>
-                    <div className="product-usage-heading">
-                      <label>
-                        使用的耗材
-                        <select
-                          value={product.productId}
-                          onChange={(event) => selectWarehouseProduct(product.id, event.target.value)}
-                        >
-                          <option value="">手动输入 / 当场添加</option>
-                          {washProducts.map((warehouseProduct) => (
-                            <option key={warehouseProduct.id} value={warehouseProduct.id}>
-                              {warehouseProduct.name} · {warehouseProduct.category}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                  <div
+                    className={product.id === newProductId ? "product-usage-row new" : "product-usage-row"}
+                    key={product.id}
+                  >
+                    <div className="product-usage-row-header">
+                      <div>
+                        <strong>耗材 {index + 1}</strong>
+                        {index === 0 && draft.products.length > 1 && <small>最新添加</small>}
+                      </div>
                       <button className="text-button danger" type="button" onClick={() => removeProduct(product.id)}>
                         移除
                       </button>
                     </div>
+                    <label>
+                      使用的耗材
+                      <select
+                        ref={product.id === newProductId ? newProductSelectRef : undefined}
+                        value={product.productId}
+                        onChange={(event) => selectWarehouseProduct(product.id, event.target.value)}
+                      >
+                        <option value="">手动输入 / 当场添加</option>
+                        {warehouseProductGroups.map((group) => (
+                          <optgroup key={group.category} label={group.category}>
+                            {group.products.map((warehouseProduct) => (
+                              <option key={warehouseProduct.id} value={warehouseProduct.id}>
+                                {warehouseProduct.name}
+                                {warehouseProduct.brand ? ` · ${warehouseProduct.brand}` : ""}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </label>
                     {selectedWarehouseProduct && (
-                      <p className="inline-help">购买价格和总容量使用仓库记录，本次用量可以留空。</p>
+                      <div className={selectedWarehouseImage ? "selected-warehouse-product" : "selected-warehouse-product without-image"}>
+                        {selectedWarehouseImage && (
+                          <WashProductPresetImage
+                            alt={`${selectedWarehouseProduct.brand ?? ""} ${selectedWarehouseProduct.name}`}
+                            src={selectedWarehouseImage}
+                          />
+                        )}
+                        <div>
+                          <strong>{selectedWarehouseProduct.name}</strong>
+                          <span>
+                            {selectedWarehouseProduct.brand ? `${selectedWarehouseProduct.brand} · ` : ""}
+                            {selectedWarehouseProduct.category}
+                          </span>
+                          <small>已带入常用步骤和单位，本次用量仍可留空。</small>
+                        </div>
+                      </div>
                     )}
                     {!product.productId && (
                       <div className="two-cols">
@@ -2326,7 +2398,12 @@ function WashRecordFields({
                           类型
                           <select
                             value={product.category}
-                            onChange={(event) => updateProduct(product.id, { category: event.target.value })}
+                            onChange={(event) =>
+                              updateProduct(product.id, {
+                                category: event.target.value,
+                                step: getDefaultWashStepForProductCategory(event.target.value),
+                              })
+                            }
                           >
                             {productCategoryOptions.map((category) => (
                               <option key={category}>{category}</option>
@@ -2589,6 +2666,7 @@ function WashProductWarehouse({
   const [formMode, setFormMode] = useState<WashProductFormMode>({ mode: "add", productId: "" });
   const [productView, setProductView] = useState<"active" | "deleted">("active");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [formFeedback, setFormFeedback] = useState("");
   const isDeletedView = productView === "deleted";
   const productsForView = isDeletedView ? deletedWashProducts : washProducts;
   const filteredProducts =
@@ -2610,9 +2688,18 @@ function WashProductWarehouse({
     );
     if (!submission) return;
 
-    if (submission.type === "replenish") onReplenish(submission.productId, submission.purchase);
-    if (submission.type === "update") onUpdate(submission.productId, submission.product);
-    if (submission.type === "add") onAdd(submission.product);
+    if (submission.type === "replenish") {
+      onReplenish(submission.productId, submission.purchase);
+      setFormFeedback(`已记录“${draft.name}”的本次补货。`);
+    }
+    if (submission.type === "update") {
+      onUpdate(submission.productId, submission.product);
+      setFormFeedback(`已更新耗材“${draft.name}”。`);
+    }
+    if (submission.type === "add") {
+      onAdd(submission.product);
+      setFormFeedback(`已将“${draft.name}”加入耗材仓库。`);
+    }
 
     setDraft(createEmptyWashProductWarehouseDraft());
     setFormMode({ mode: "add", productId: "" });
@@ -2621,15 +2708,18 @@ function WashProductWarehouse({
   function resetForm() {
     setDraft(createEmptyWashProductWarehouseDraft());
     setFormMode({ mode: "add", productId: "" });
+    setFormFeedback("");
   }
 
   function startEditing(product: WashProduct) {
+    setFormFeedback("");
     setFormMode({ mode: "edit", productId: product.id });
     setDraft(createWashProductDraftFromProduct(product, today()));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function startReplenishing(product: WashProduct) {
+    setFormFeedback("");
     setFormMode({ mode: "replenish", productId: product.id });
     setDraft(createWashProductReplenishDraftFromProduct(product, today()));
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2685,13 +2775,96 @@ function WashProductWarehouse({
         <div className="two-cols">
           <label>
             名称
-            <input value={draft.name} onChange={(event) => setDraft({ ...draft, presetId: "", name: event.target.value })} />
+            <input
+              value={draft.name}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  presetId: "",
+                  name: event.target.value,
+                  ...(draft.presetId ? { imageUrl: "", description: "", sourceUrl: "" } : {}),
+                })
+              }
+            />
           </label>
           <label>
             品牌
-            <input value={draft.brand} onChange={(event) => setDraft({ ...draft, presetId: "", brand: event.target.value })} />
+            <input
+              value={draft.brand}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  presetId: "",
+                  brand: event.target.value,
+                  ...(draft.presetId ? { imageUrl: "", description: "", sourceUrl: "" } : {}),
+                })
+              }
+            />
           </label>
         </div>
+        {formMode.mode !== "replenish" && (
+          <WashProductMetadataLookup
+            query={`${draft.brand} ${draft.name}`}
+            onApply={(candidate) =>
+              setDraft({
+                ...draft,
+                presetId: "",
+                imageUrl: candidate.imageUrl ?? draft.imageUrl,
+                description: candidate.description || draft.description,
+                sourceUrl: candidate.sourceUrl,
+                category: candidate.category ?? draft.category,
+                capacity: candidate.capacity != null ? String(candidate.capacity) : draft.capacity,
+                capacityUnit: candidate.capacityUnit ?? draft.capacityUnit,
+              })
+            }
+          />
+        )}
+        {formMode.mode !== "replenish" && (
+          <details className="wash-product-metadata-fields">
+            <summary>
+              <span>产品图片与说明</span>
+              <small>{draft.imageUrl || draft.description ? "已补充" : "可选"}</small>
+            </summary>
+            <div className="wash-product-metadata-content">
+              {draft.imageUrl && (
+                <div className="wash-product-metadata-preview">
+                  <WashProductPresetImage alt={`${draft.brand} ${draft.name}`} src={draft.imageUrl} />
+                  <div>
+                    <strong>{draft.name || "产品图片预览"}</strong>
+                    <span>{draft.description || "暂未填写产品简介。"}</span>
+                  </div>
+                </div>
+              )}
+              <label>
+                图片地址
+                <input
+                  type="url"
+                  value={draft.imageUrl}
+                  onChange={(event) => setDraft({ ...draft, presetId: "", imageUrl: event.target.value })}
+                  placeholder="https://..."
+                />
+              </label>
+              <label>
+                产品说明
+                <textarea
+                  rows={3}
+                  value={draft.description}
+                  onChange={(event) => setDraft({ ...draft, presetId: "", description: event.target.value })}
+                  placeholder="用途、特点或适用范围"
+                />
+              </label>
+              <label>
+                资料来源
+                <input
+                  type="url"
+                  value={draft.sourceUrl}
+                  onChange={(event) => setDraft({ ...draft, presetId: "", sourceUrl: event.target.value })}
+                  placeholder="产品官网或商品页"
+                />
+              </label>
+            </div>
+          </details>
+        )}
         <div className="two-cols">
           <label>
             类型
@@ -2759,6 +2932,11 @@ function WashProductWarehouse({
             </button>
           )}
         </div>
+        {formFeedback && (
+          <p className="form-feedback" aria-live="polite">
+            {formFeedback}
+          </p>
+        )}
       </form>
       <div className="warehouse-toolbar">
         <div className="segmented-buttons compact" aria-label="耗材状态">
@@ -2804,7 +2982,12 @@ function WashProductWarehouse({
             return (
               <div className="warehouse-row" key={product.id}>
                 <div className="warehouse-product-summary">
-                  {preset && <WashProductPresetImage alt={`${product.brand ?? ""} ${product.name}`} src={preset.imageUrl} />}
+                  {(preset?.imageUrl || product.imageUrl) && (
+                    <WashProductPresetImage
+                      alt={`${product.brand ?? ""} ${product.name}`}
+                      src={preset?.imageUrl ?? product.imageUrl ?? ""}
+                    />
+                  )}
                   <div>
                     <strong>{product.name}</strong>
                     <span>
@@ -2812,6 +2995,17 @@ function WashProductWarehouse({
                       {product.category} · {product.purchases.length} 次购买
                     </span>
                     {preset?.defaultDilutionRatio && <span>建议：{preset.defaultDilutionRatio}</span>}
+                    {product.description && <span className="warehouse-product-description">{product.description}</span>}
+                    {(product.sourceUrl || preset?.sourceUrl) && (
+                      <a
+                        className="warehouse-product-source"
+                        href={product.sourceUrl ?? preset?.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        查看产品资料
+                      </a>
+                    )}
                     {latestPurchase && (
                       <span>
                         最近：{latestPurchase.date}

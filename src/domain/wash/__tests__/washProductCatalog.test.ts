@@ -11,6 +11,7 @@ const supportedCategories = new Set([
   "轮毂清洁",
   "轮胎养护",
   "玻璃清洁",
+  "玻璃去油膜",
   "内饰清洁",
   "蜡/封体",
   "毛巾/工具",
@@ -34,6 +35,8 @@ describe("washProductCatalog", () => {
     expect(getWashProductPreset("koch-pol-star")?.shortCode).toBe("PO");
     expect(getWashProductPreset("carpro-reset")?.name).toContain("Reset");
     expect(getWashProductPreset("fireball-bug-cleaner")?.brand).toContain("火球");
+    expect(getWashProductPreset("fireball-glass-cleaner")?.defaultCapacity).toBe(500);
+    expect(getWashProductPreset("klcb-a14-glass-polishing-compound")?.shortCode).toBe("A14");
     expect(getWashProductPreset("adams-wheel-tire-cleaner")?.name).toContain("WTC");
   });
 
@@ -42,6 +45,12 @@ describe("washProductCatalog", () => {
     expect(filterWashProductPresets("Reset").map((preset) => preset.id)).toEqual(["carpro-reset"]);
     expect(filterWashProductPresets("虫清", "Fireball 火球").map((preset) => preset.id)).toEqual([
       "fireball-bug-cleaner",
+    ]);
+    expect(filterWashProductPresets("玻璃清洁", "Fireball 火球").map((preset) => preset.id)).toEqual([
+      "fireball-glass-cleaner",
+    ]);
+    expect(filterWashProductPresets("去油膜").map((preset) => preset.id)).toEqual([
+      "klcb-a14-glass-polishing-compound",
     ]);
   });
 

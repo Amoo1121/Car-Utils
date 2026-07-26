@@ -115,6 +115,9 @@ describe("store migration", () => {
           userId: "user_1",
           name: "预洗液",
           category: "预洗",
+          imageUrl: "https://example.com/product.jpg",
+          description: "产品说明",
+          sourceUrl: "https://example.com/product",
           purchases: [{ id: "", date: "", purchasePrice: "88", capacity: "500", capacityUnit: "" }],
         },
       ],
@@ -154,6 +157,11 @@ describe("store migration", () => {
       capacityUnit: "ml",
     });
     expect(store.washProducts[0].purchases[0].id).toBeTruthy();
+    expect(store.washProducts[0]).toMatchObject({
+      imageUrl: "https://example.com/product.jpg",
+      description: "产品说明",
+      sourceUrl: "https://example.com/product",
+    });
   });
 
   it("consolidates duplicate email users and remaps owned records to the canonical user", () => {

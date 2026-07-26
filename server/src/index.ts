@@ -1,12 +1,15 @@
 import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
 import { openDatabase } from "./db.js";
+import { lookupProductMetadata, type ProductLookup } from "./productLookup.js";
+import { registerProductLookupRoutes } from "./productLookupRoutes.js";
 import { SQLiteStoreRepository } from "./storeRepository.js";
 import { registerStoreRoutes } from "./storeRoutes.js";
 
 export type CreateServerOptions = {
   databasePath?: string;
   logger?: boolean;
+  productLookup?: ProductLookup;
 };
 
 export function createServer(options: CreateServerOptions = {}) {
@@ -32,6 +35,7 @@ export function createServer(options: CreateServerOptions = {}) {
   });
 
   registerStoreRoutes(app, repository);
+  registerProductLookupRoutes(app, options.productLookup ?? lookupProductMetadata);
   return app;
 }
 

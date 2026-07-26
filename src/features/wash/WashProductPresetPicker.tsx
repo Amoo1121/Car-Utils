@@ -1,5 +1,5 @@
 import { ExternalLink, PackageOpen, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   filterWashProductPresets,
   washProductPresets,
@@ -14,17 +14,27 @@ export type WashProductPresetPickerProps = {
 export function WashProductPresetPicker({ selectedPresetId, onSelect }: WashProductPresetPickerProps) {
   const [query, setQuery] = useState("");
   const [brand, setBrand] = useState("all");
+  const detailsRef = useRef<HTMLDetailsElement | null>(null);
   const brands = useMemo(() => [...new Set(washProductPresets.map((preset) => preset.brand))], []);
   const filteredPresets = useMemo(() => filterWashProductPresets(query, brand), [brand, query]);
+  const selectedPreset = useMemo(
+    () => washProductPresets.find((preset) => preset.id === selectedPresetId),
+    [selectedPresetId],
+  );
+
+  function selectPreset(preset: WashProductPreset) {
+    onSelect(preset);
+    if (detailsRef.current) detailsRef.current.open = false;
+  }
 
   return (
-    <details className="wash-preset-library">
+    <details className="wash-preset-library" ref={detailsRef}>
       <summary>
         <span>
           <PackageOpen size={17} />
-          从常用产品库选择
+          {selectedPreset ? `已选择：${selectedPreset.name}` : "从常用产品库选择"}
         </span>
-        <small>{washProductPresets.length} 个常用耗材</small>
+        <small>{selectedPreset ? "点击更换" : `${washProductPresets.length} 个常用耗材`}</small>
       </summary>
 
       <div className="wash-preset-content">
@@ -57,7 +67,7 @@ export function WashProductPresetPicker({ selectedPresetId, onSelect }: WashProd
         <div className="wash-preset-grid">
           {filteredPresets.map((preset) => (
             <article className={selectedPresetId === preset.id ? "wash-preset-card selected" : "wash-preset-card"} key={preset.id}>
-              <button type="button" onClick={() => onSelect(preset)} aria-label={`使用 ${preset.brand} ${preset.name}`}>
+              <button type="button" onClick={() => selectPreset(preset)} aria-label={`使用 ${preset.brand} ${preset.name}`}>
                 <WashProductPresetImage alt={`${preset.brand} ${preset.name}`} src={preset.imageUrl} />
                 <span className="wash-preset-card-copy">
                   <span className="wash-preset-card-meta">

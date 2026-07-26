@@ -130,6 +130,9 @@ export type WashProduct = BaseEntity & {
   name: string;
   brand?: string;
   category: string;
+  imageUrl?: string;
+  description?: string;
+  sourceUrl?: string;
   purchases: WashProductPurchase[];
   note?: string;
 };

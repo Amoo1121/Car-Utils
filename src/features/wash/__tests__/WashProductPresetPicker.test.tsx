@@ -11,7 +11,7 @@ describe("WashProductPresetPicker", () => {
   it("filters common products and returns the selected preset", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
-    render(<WashProductPresetPicker onSelect={onSelect} />);
+    const { rerender } = render(<WashProductPresetPicker onSelect={onSelect} />);
 
     await user.click(screen.getByText("从常用产品库选择"));
     await user.type(screen.getByRole("searchbox", { name: "搜索产品" }), "Reset");
@@ -22,6 +22,9 @@ describe("WashProductPresetPicker", () => {
 
     await user.click(resetButton);
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: "carpro-reset" }));
+    rerender(<WashProductPresetPicker selectedPresetId="carpro-reset" onSelect={onSelect} />);
+    expect(screen.getByText("已选择：Reset Intensive Car Shampoo")).toBeTruthy();
+    expect(screen.getByText("已选择：Reset Intensive Car Shampoo").closest("details")?.open).toBe(false);
   });
 
   it("supports filtering by brand", async () => {

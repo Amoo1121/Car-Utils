@@ -7,6 +7,8 @@ import {
   createEmptyWashDraft,
   createWashDraft,
   estimateWashProductCost,
+  getDefaultWashStepForProductCategory,
+  getSuggestedWashUsageUnit,
   resolveWashCost,
   restoreWashRecordInStore,
   softDeleteWashRecordInStore,
@@ -174,6 +176,15 @@ describe("washService", () => {
 
   it("does not add a blank product row when editing a wash without products", () => {
     expect(createWashDraft(baseWashRecord).products).toEqual([]);
+  });
+
+  it("suggests practical steps and usage units from warehouse metadata", () => {
+    expect(getDefaultWashStepForProductCategory("玻璃去油膜")).toBe("玻璃");
+    expect(getDefaultWashStepForProductCategory("轮毂清洁")).toBe("轮毂");
+    expect(getDefaultWashStepForProductCategory("未知类型")).toBe("其他");
+    expect(getSuggestedWashUsageUnit("L")).toBe("ml");
+    expect(getSuggestedWashUsageUnit("kg")).toBe("g");
+    expect(getSuggestedWashUsageUnit("pcs")).toBe("pcs");
   });
 });
 

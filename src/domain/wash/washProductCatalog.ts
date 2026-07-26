@@ -9,6 +9,7 @@ export type WashProductPreset = {
   defaultCapacity: number;
   capacityUnit: NonNullable<WashProductPurchase["capacityUnit"]>;
   defaultDilutionRatio?: string;
+  description?: string;
   imageUrl: string;
   sourceUrl: string;
   keywords: string[];
@@ -265,6 +266,36 @@ export const washProductPresets: WashProductPreset[] = [
       "https://static.wixstatic.com/media/fe7082_b5020aad21f84619888ed949e85ef34b~mv2.jpg/v1/fill/w_1000,h_1000,al_c,q_85/%EB%B2%84%EA%B7%B8%ED%81%B4%EB%A6%AC%EB%84%88.jpg",
     sourceUrl: "https://www.fireballkorea.com/cleaners/bug-cleaner",
     keywords: ["火球", "虫清", "虫尸", "树胶", "鸟粪"],
+  },
+  {
+    id: "fireball-glass-cleaner",
+    brand: "Fireball 火球",
+    name: "Glass Cleaner",
+    shortCode: "GLASS",
+    category: "玻璃清洁",
+    defaultCapacity: 500,
+    capacityUnit: "ml",
+    defaultDilutionRatio: "原液使用",
+    description: "即用型汽车玻璃清洁剂，用于清理指纹、灰尘、油污和道路污膜，并减少擦拭残留。",
+    imageUrl: "https://www.waschguru.de/media/image/product/28713/lg/fireball-glass-glasreiniger-500ml.jpg",
+    sourceUrl: "https://www.fireballkorea.com/cleaners",
+    keywords: ["火球", "玻璃清洁", "玻璃水", "glass", "车窗", "内外玻璃", "无氨"],
+  },
+  {
+    id: "klcb-a14-glass-polishing-compound",
+    brand: "KLCB 苛力",
+    name: "A14 Glass Polishing Compound",
+    shortCode: "A14",
+    category: "玻璃去油膜",
+    defaultCapacity: 150,
+    capacityUnit: "ml",
+    defaultDilutionRatio: "原液配合海绵研磨",
+    description: "氧化铈玻璃抛光剂，用于清除汽车玻璃油膜、水渍和旧镀膜残留。",
+    imageUrl:
+      "https://www.zgklcb.com/wp-content/uploads/2024/10/%E7%8E%BB%E7%92%83%E6%8A%9B%E5%85%89%E5%89%82-SKU.jpg",
+    sourceUrl:
+      "https://www.zgklcb.com/product/klcb-a14-glass-auto-window-polish-compounds-car-clean-polishing-wax-glass-polishing-compound",
+    keywords: ["苛力", "klcb", "a14", "去油膜", "油膜清除", "玻璃抛光", "氧化铈", "水渍", "旧镀膜"],
   },
   {
     id: "adams-wheel-tire-cleaner",

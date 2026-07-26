@@ -143,6 +143,43 @@ export function createWashProductUsageDraft(product: WashProductUsage): WashProd
   };
 }
 
+export function getDefaultWashStepForProductCategory(category: string) {
+  switch (category) {
+    case "预洗液":
+      return "预洗";
+    case "正洗液":
+    case "洗车液":
+      return "正洗";
+    case "轮毂清洁":
+    case "铁粉去除":
+      return "轮毂";
+    case "轮胎养护":
+      return "轮胎";
+    case "内饰清洁":
+      return "内饰";
+    case "玻璃清洁":
+    case "玻璃去油膜":
+      return "玻璃";
+    case "虫胶清洁":
+    case "多用途清洁":
+      return "去污";
+    case "蜡/封体":
+      return "打蜡/保护";
+    case "毛巾/工具":
+      return "收水";
+    default:
+      return "其他";
+  }
+}
+
+export function getSuggestedWashUsageUnit(
+  capacityUnit: WashProductUsage["capacityUnit"] | undefined,
+): WashProductUsage["usedUnit"] {
+  if (capacityUnit === "kg" || capacityUnit === "g") return "g";
+  if (capacityUnit === "pcs") return "pcs";
+  return "ml";
+}
+
 export function buildWashRecord(vehicleId: string, draft: WashRecordDraft): WashRecordInput {
   const products = draft.washType === "diy" ? buildWashProductUsages(draft.products) : [];
   const estimatedProductCost = products.reduce((sum, product) => sum + (product.estimatedCost ?? product.cost ?? 0), 0);

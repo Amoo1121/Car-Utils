@@ -17,6 +17,9 @@ export type WashProductDraft = {
   name: string;
   brand: string;
   category: string;
+  imageUrl: string;
+  description: string;
+  sourceUrl: string;
   purchaseDate: string;
   purchasePrice: string;
   capacity: string;
@@ -46,6 +49,9 @@ export function createEmptyWashProductWarehouseDraft(): WashProductDraft {
     name: "",
     brand: "",
     category: "预洗液",
+    imageUrl: "",
+    description: "",
+    sourceUrl: "",
     purchaseDate: today(),
     purchasePrice: "",
     capacity: "",
@@ -61,6 +67,9 @@ export function applyWashProductPresetToDraft(draft: WashProductDraft, preset: W
     name: preset.name,
     brand: preset.brand,
     category: preset.category,
+    imageUrl: preset.imageUrl,
+    description: preset.description ?? "",
+    sourceUrl: preset.sourceUrl,
     capacity: String(preset.defaultCapacity),
     capacityUnit: preset.capacityUnit,
   };
@@ -92,6 +101,9 @@ export function createWashProductDraftFromProduct(product: WashProduct, today: s
     name: product.name,
     brand: product.brand ?? "",
     category: product.category,
+    imageUrl: product.imageUrl ?? "",
+    description: product.description ?? "",
+    sourceUrl: product.sourceUrl ?? "",
     purchaseDate: latestPurchase?.date ?? today,
     purchasePrice: latestPurchase?.purchasePrice != null ? String(latestPurchase.purchasePrice) : "",
     capacity: latestPurchase?.capacity != null ? String(latestPurchase.capacity) : "",
@@ -107,6 +119,9 @@ export function createWashProductReplenishDraftFromProduct(product: WashProduct,
     name: product.name,
     brand: product.brand ?? "",
     category: product.category,
+    imageUrl: product.imageUrl ?? "",
+    description: product.description ?? "",
+    sourceUrl: product.sourceUrl ?? "",
     purchaseDate: today,
     purchasePrice: latestPurchase?.purchasePrice != null ? String(latestPurchase.purchasePrice) : "",
     capacity: latestPurchase?.capacity != null ? String(latestPurchase.capacity) : "",
@@ -150,6 +165,9 @@ export function buildWashProductSubmission(
         name: draft.name.trim(),
         brand: draft.brand.trim() || undefined,
         category: draft.category,
+        imageUrl: draft.imageUrl.trim() || undefined,
+        description: draft.description.trim() || undefined,
+        sourceUrl: draft.sourceUrl.trim() || undefined,
         purchases,
         note: draft.note.trim() || undefined,
       },
@@ -164,6 +182,9 @@ export function buildWashProductSubmission(
       name: draft.name.trim(),
       brand: draft.brand.trim() || undefined,
       category: draft.category,
+      imageUrl: draft.imageUrl.trim() || undefined,
+      description: draft.description.trim() || undefined,
+      sourceUrl: draft.sourceUrl.trim() || undefined,
       purchases: hasPurchaseDetails(purchase) ? [purchase] : [],
       note: draft.note.trim() || undefined,
     },

@@ -26,6 +26,56 @@ test("GET /api/health returns ok", async (t) => {
   assert.deepEqual(response.json(), { ok: true });
 });
 
+test("GET /api/product-lookup returns reviewable metadata candidates", async (t) => {
+  const { directory, databasePath } = createTempDatabasePath();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+
+  const app = createServer({
+    databasePath,
+    logger: false,
+    productLookup: async (query) => [
+      {
+        title: `${query} official`,
+        description: "Automotive glass cleaner.",
+        imageUrl: "https://example.com/product.jpg",
+        sourceUrl: "https://example.com/product",
+      },
+    ],
+  });
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/api/product-lookup?query=Fireball%20Glass",
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), {
+    query: "Fireball Glass",
+    candidates: [
+      {
+        title: "Fireball Glass official",
+        description: "Automotive glass cleaner.",
+        imageUrl: "https://example.com/product.jpg",
+        sourceUrl: "https://example.com/product",
+      },
+    ],
+  });
+});
+
+test("GET /api/product-lookup validates the query", async (t) => {
+  const { directory, databasePath } = createTempDatabasePath();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+
+  const app = createServer({ databasePath, logger: false, productLookup: async () => [] });
+  t.after(async () => app.close());
+
+  const response = await app.inject({ method: "GET", url: "/api/product-lookup?query=x" });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().error, "INVALID_PRODUCT_QUERY");
+});
+
 test("OPTIONS /api/store exposes version and optimistic-lock headers", async (t) => {
   const { directory, databasePath } = createTempDatabasePath();
   t.after(() => rmSync(directory, { recursive: true, force: true }));

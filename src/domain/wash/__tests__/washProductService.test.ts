@@ -164,12 +164,36 @@ describe("washProductService", () => {
       name: "Reset Intensive Car Shampoo",
       brand: "CARPRO 卡普",
       category: "正洗液",
+      imageUrl: preset.imageUrl,
+      sourceUrl: preset.sourceUrl,
       capacity: "500",
       capacityUnit: "ml",
     });
     expect(submission).toMatchObject({
       type: "add",
-      product: { presetId: "carpro-reset" },
+      product: {
+        presetId: "carpro-reset",
+        imageUrl: preset.imageUrl,
+        sourceUrl: preset.sourceUrl,
+      },
+    });
+  });
+
+  it("stores optional metadata for products found online", () => {
+    const draft = {
+      ...createDraft(),
+      imageUrl: "https://example.com/product.jpg",
+      description: "联网找到的产品说明",
+      sourceUrl: "https://example.com/product",
+    };
+
+    expect(buildWashProductSubmission({ mode: "add", productId: "" }, draft, undefined)).toMatchObject({
+      type: "add",
+      product: {
+        imageUrl: "https://example.com/product.jpg",
+        description: "联网找到的产品说明",
+        sourceUrl: "https://example.com/product",
+      },
     });
   });
 
@@ -231,6 +255,9 @@ function createDraft(): WashProductDraft {
     name: "正洗液",
     brand: "NewBrand",
     category: "正洗液",
+    imageUrl: "",
+    description: "",
+    sourceUrl: "",
     purchaseDate: "2026-02-01",
     purchasePrice: "88",
     capacity: "500",

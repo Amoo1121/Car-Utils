@@ -62,12 +62,13 @@ npm run backend:up
 
 ## API
 
-后端提供三个基础接口：
+后端提供以下接口：
 
 ```text
 GET /api/health
 GET /api/store
 PUT /api/store
+GET /api/product-lookup?query=品牌%20产品名称
 ```
 
 `GET /api/store` 在没有数据时返回 `404` 和 `{ "store": null }`。前端会识别这个状态，并尝试从旧的浏览器 `localStorage` 自动迁移。
@@ -87,6 +88,8 @@ x-car-utils-updated-at
 ```
 
 前端保存时会带上 `If-Match` 或 `If-None-Match`，避免多个浏览器窗口用旧 Store 覆盖新 Store。
+
+`GET /api/product-lookup` 用于耗材仓库的联网资料补全。后端会搜索公开产品页并提取候选图片、简介、容量和来源，前端只在用户确认候选后写入 Store。搜索失败不影响手动添加耗材，也不会改变 SQLite 和浏览器备份的保存链路。
 
 ## SQLite 文件和 Docker volume
 

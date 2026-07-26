@@ -10,6 +10,7 @@
     "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "cheerio": "^1.2.0",
     "fastify": "^5.2.1"
   },
   "devDependencies": {
