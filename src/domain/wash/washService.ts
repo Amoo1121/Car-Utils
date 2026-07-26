@@ -50,6 +50,8 @@ export type WashMutationOptions = {
   timestamp?: number;
 };
 
+const DEFAULT_DIY_ITEMS = "预洗, 正洗, 轮毂";
+
 export function createEmptyWashDraft(washType: WashType = "diy"): WashRecordDraft {
   return {
     date: today(),
@@ -57,7 +59,7 @@ export function createEmptyWashDraft(washType: WashType = "diy"): WashRecordDraf
     washType,
     shopName: "",
     location: "",
-    items: "预洗, 正洗, 轮毂",
+    items: washType === "diy" ? DEFAULT_DIY_ITEMS : "",
     minutes: "",
     laborCost: "",
     materialCost: "",
@@ -67,7 +69,7 @@ export function createEmptyWashDraft(washType: WashType = "diy"): WashRecordDraf
     effectRating: "",
     nextSuggestedDate: "",
     notes: "",
-    products: washType === "diy" ? [createEmptyWashProductUsageDraft()] : [],
+    products: [],
   };
 }
 
@@ -106,12 +108,20 @@ export function createWashDraft(record: WashRecord): WashRecordDraft {
     effectRating: record.effectRating ? String(record.effectRating) : "",
     nextSuggestedDate: record.nextSuggestedDate ?? "",
     notes: record.notes,
-    products:
-      record.products && record.products.length > 0
-        ? record.products.map(createWashProductUsageDraft)
-        : record.washType === "diy"
-          ? [createEmptyWashProductUsageDraft()]
-          : [],
+    products: record.products?.map(createWashProductUsageDraft) ?? [],
+  };
+}
+
+export function changeWashDraftType(draft: WashRecordDraft, washType: WashType): WashRecordDraft {
+  if (draft.washType === washType) return draft;
+
+  const leavingDefaultDiyFlow = draft.washType === "diy" && draft.items === DEFAULT_DIY_ITEMS;
+  const returningToDiyFlow = washType === "diy" && !draft.items.trim();
+
+  return {
+    ...draft,
+    washType,
+    items: leavingDefaultDiyFlow ? "" : returningToDiyFlow ? DEFAULT_DIY_ITEMS : draft.items,
   };
 }
 
@@ -137,7 +147,7 @@ export function buildWashRecord(vehicleId: string, draft: WashRecordDraft): Wash
   const products = draft.washType === "diy" ? buildWashProductUsages(draft.products) : [];
   const estimatedProductCost = products.reduce((sum, product) => sum + (product.estimatedCost ?? product.cost ?? 0), 0);
   const materialCost = draft.materialCost ? Number(draft.materialCost) : estimatedProductCost || undefined;
-  const resolvedCost = draft.cost ? Number(draft.cost) : resolveWashCost(draft);
+  const resolvedCost = resolveWashCost(draft);
 
   return {
     vehicleId,
@@ -188,20 +198,24 @@ export function buildWashProductUsages(products: WashProductUsageDraft[]): WashP
 }
 
 export function resolveWashCost(draft: WashRecordDraft) {
-  if (draft.cost) return Number(draft.cost);
+  if (draft.washType !== "diy") return draft.cost ? Number(draft.cost) : 0;
 
   const productCost = draft.products.reduce((sum, product) => {
     const cost = product.estimatedCost ? Number(product.estimatedCost) : estimateWashProductCost(product);
     return sum + cost;
   }, 0);
 
-  return (
+  const itemizedCost =
     Number(draft.laborCost || 0) +
-    Number(draft.materialCost || 0) +
+    (draft.materialCost ? Number(draft.materialCost) : productCost) +
     Number(draft.waterElectricityCost || 0) +
-    Number(draft.locationCost || 0) +
-    productCost
-  );
+    Number(draft.locationCost || 0);
+  const hasItemizedCost = [draft.laborCost, draft.materialCost, draft.waterElectricityCost, draft.locationCost].some(
+    Boolean,
+  ) || productCost > 0;
+
+  if (hasItemizedCost) return itemizedCost;
+  return draft.cost ? Number(draft.cost) : 0;
 }
 
 export function estimateWashProductCost(product: WashProductUsageDraft) {

@@ -3,6 +3,8 @@ import type { Store, User, WashRecord } from "../../store/types";
 import {
   addWashRecordToStore,
   buildWashRecord,
+  changeWashDraftType,
+  createEmptyWashDraft,
   createWashDraft,
   estimateWashProductCost,
   resolveWashCost,
@@ -111,6 +113,49 @@ describe("washService", () => {
     });
   });
 
+  it("uses itemized DIY costs without double-counting product estimates", () => {
+    const draft = createDraft();
+    draft.materialCost = "12";
+    draft.cost = "99";
+
+    expect(resolveWashCost(draft)).toBe(37);
+    expect(buildWashRecord("vehicle_1", draft).cost).toBe(37);
+  });
+
+  it("keeps a legacy total when no itemized DIY cost is available", () => {
+    const draft = createEmptyWashDraft();
+    draft.cost = "28";
+
+    expect(draft.products).toEqual([]);
+    expect(resolveWashCost(draft)).toBe(28);
+
+    draft.waterElectricityCost = "15";
+    expect(resolveWashCost(draft)).toBe(15);
+  });
+
+  it("uses only the paid total for shop washes", () => {
+    const draft = createDraft();
+    draft.washType = "detailing";
+    draft.cost = "";
+
+    expect(resolveWashCost(draft)).toBe(0);
+
+    draft.cost = "88";
+    expect(resolveWashCost(draft)).toBe(88);
+    expect(buildWashRecord("vehicle_1", draft).cost).toBe(88);
+  });
+
+  it("keeps default steps out of shop wash drafts when the wash type changes", () => {
+    const diyDraft = createEmptyWashDraft();
+    const shopDraft = changeWashDraftType(diyDraft, "detailing");
+
+    expect(shopDraft).toMatchObject({ washType: "detailing", items: "" });
+    expect(changeWashDraftType(shopDraft, "diy")).toMatchObject({
+      washType: "diy",
+      items: "预洗, 正洗, 轮毂",
+    });
+  });
+
   it("creates drafts from existing wash records", () => {
     const draft = createWashDraft({
       ...baseWashRecord,
@@ -125,6 +170,10 @@ describe("washService", () => {
       notes: "旧记录",
       products: [expect.objectContaining({ id: "usage_1", name: "正洗液", estimatedCost: "3" })],
     });
+  });
+
+  it("does not add a blank product row when editing a wash without products", () => {
+    expect(createWashDraft(baseWashRecord).products).toEqual([]);
   });
 });
 

@@ -77,6 +77,7 @@ import {
 import {
   addWashRecordToStore,
   buildWashRecord,
+  changeWashDraftType,
   createEmptyWashDraft,
   createEmptyWashProductUsageDraft,
   createWashDraft,
@@ -2110,6 +2111,7 @@ function WashForm({
   onCreateProduct: (product: Omit<WashProduct, "id" | "userId">) => WashProduct | undefined;
 }) {
   const [draft, setDraft] = useState<WashRecordDraft>(() => createEmptyWashDraft());
+  const resolvedCost = resolveWashCost(draft);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -2129,8 +2131,8 @@ function WashForm({
         onCreateProduct={onCreateProduct}
         washProducts={washProducts}
       />
-      <button className="primary-button" type="submit">
-        保存洗车记录 · {money(resolveWashCost(draft))}
+      <button className="primary-button wash-save-button" type="submit">
+        保存洗车记录{resolvedCost > 0 ? ` · ${money(resolvedCost)}` : ""}
       </button>
     </form>
   );
@@ -2148,6 +2150,7 @@ function WashRecordFields({
   washProducts: WashProduct[];
 }) {
   const isDiy = draft.washType === "diy";
+  const resolvedCost = resolveWashCost(draft);
 
   function updateProduct(productId: string, nextProduct: Partial<WashProductUsageDraft>) {
     onChange({
@@ -2202,7 +2205,7 @@ function WashRecordFields({
           洗车方式
           <select
             value={draft.washType}
-            onChange={(event) => onChange({ ...draft, washType: event.target.value as WashType })}
+            onChange={(event) => onChange(changeWashDraftType(draft, event.target.value as WashType))}
           >
             {washTypeOptions.map((option) => (
               <option key={option.id} value={option.id}>
@@ -2212,288 +2215,353 @@ function WashRecordFields({
           </select>
         </label>
       </div>
-      <div className="two-cols">
-        <label>
-          里程 km
-          <input
-            type="number"
-            min="0"
-            step="0.1"
-            value={draft.odometer}
-            onChange={(event) => onChange({ ...draft, odometer: event.target.value })}
-            placeholder="可选"
-          />
-        </label>
-        <label>
-          用时分钟
-          <input
-            type="number"
-            min="0"
-            value={draft.minutes}
-            onChange={(event) => onChange({ ...draft, minutes: event.target.value })}
-            placeholder="可选"
-          />
-        </label>
+      <div className={isDiy ? "wash-primary-fields" : "two-cols"}>
+        {isDiy ? (
+          <label>
+            场地 / 水电支出
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={draft.waterElectricityCost}
+              onChange={(event) => onChange({ ...draft, waterElectricityCost: event.target.value })}
+              placeholder="例如 20，不知道可留空"
+            />
+            <small className="field-help">只填这次实际支付的自助洗车或场地费用。</small>
+          </label>
+        ) : (
+          <>
+            <label>
+              店铺名称
+              <input
+                value={draft.shopName}
+                onChange={(event) => onChange({ ...draft, shopName: event.target.value })}
+                placeholder="例如 某某汽车美容"
+              />
+            </label>
+            <label>
+              本次实付
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={draft.cost}
+                onChange={(event) => onChange({ ...draft, cost: event.target.value })}
+                placeholder="实际支付金额"
+              />
+            </label>
+          </>
+        )}
       </div>
       {!isDiy && (
-        <div className="two-cols">
-          <label>
-            店铺名称
-            <input
-              value={draft.shopName}
-              onChange={(event) => onChange({ ...draft, shopName: event.target.value })}
-              placeholder="例如 某某汽车美容"
-            />
-          </label>
-          <label>
-            地点
-            <input
-              value={draft.location}
-              onChange={(event) => onChange({ ...draft, location: event.target.value })}
-              placeholder="可选"
-            />
-          </label>
-        </div>
+        <label>
+          服务项目
+          <input
+            value={draft.items}
+            onChange={(event) => onChange({ ...draft, items: event.target.value })}
+            placeholder="例如 外观清洗, 内饰清洁"
+          />
+        </label>
       )}
-      <label>
-        项目 / 步骤，逗号分隔
-        <input value={draft.items} onChange={(event) => onChange({ ...draft, items: event.target.value })} />
-      </label>
-      <div className="two-cols">
-        <label>
-          实付总成本
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={draft.cost}
-            onChange={(event) => onChange({ ...draft, cost: event.target.value })}
-            placeholder={money(resolveWashCost(draft))}
-          />
-        </label>
-        <label>
-          效果评分
-          <select value={draft.effectRating} onChange={(event) => onChange({ ...draft, effectRating: event.target.value })}>
-            <option value="">不评分</option>
-            <option value="5">5 - 很满意</option>
-            <option value="4">4 - 不错</option>
-            <option value="3">3 - 一般</option>
-            <option value="2">2 - 不太行</option>
-            <option value="1">1 - 翻车</option>
-          </select>
-        </label>
-      </div>
-      <div className="two-cols">
-        <label>
-          人工 / 服务费
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={draft.laborCost}
-            onChange={(event) => onChange({ ...draft, laborCost: event.target.value })}
-            placeholder="店内服务可填"
-          />
-        </label>
-        <label>
-          水电 / 场地费
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={draft.waterElectricityCost}
-            onChange={(event) => onChange({ ...draft, waterElectricityCost: event.target.value })}
-            placeholder="DIY 可填"
-          />
-        </label>
-      </div>
       {isDiy && (
-        <section className="inline-panel">
+        <section className="inline-panel wash-products-section">
           <div className="panel-heading-row">
             <div>
-              <strong>DIY 药剂 / 耗材</strong>
-              <p className="inline-help">记录预洗、正洗、轮毂等药剂的购买价、容量和本次用量。</p>
+              <strong>本次使用的耗材</strong>
+              <p className="inline-help">可选。选择仓库耗材后，只需记录本次用量；不记用量也可以保存。</p>
             </div>
             <button
               className="text-button"
               type="button"
-                onClick={() => onChange({ ...draft, products: [...draft.products, createEmptyWashProductUsageDraft()] })}
+              onClick={() => onChange({ ...draft, products: [...draft.products, createEmptyWashProductUsageDraft()] })}
             >
+              <Plus size={14} aria-hidden="true" />
               添加耗材
             </button>
           </div>
-          <div className="product-usage-list">
-            {draft.products.map((product) => {
-              const estimatedCost = estimateWashProductCost(product);
-              const selectedWarehouseProduct = washProducts.find((warehouseProduct) => warehouseProduct.id === product.productId);
-              return (
-                <div className="product-usage-row" key={product.id}>
-                  <label>
-                    仓库耗材
-                    <select value={product.productId} onChange={(event) => selectWarehouseProduct(product.id, event.target.value)}>
-                      <option value="">手动输入 / 当场添加</option>
-                      {washProducts.map((warehouseProduct) => (
-                        <option key={warehouseProduct.id} value={warehouseProduct.id}>
-                          {warehouseProduct.name} · {warehouseProduct.category}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {selectedWarehouseProduct && (
-                    <p className="inline-help">
-                      已选择仓库耗材：购买价和总容量由仓库记录提供，本次只需要填写用量、稀释比例和必要备注。
-                    </p>
-                  )}
-                  <div className="two-cols">
-                    <label>
-                      名称
-                      <input
-                        value={product.name}
-                        onChange={(event) => updateProduct(product.id, { name: event.target.value })}
-                        placeholder="例如 PA 预洗液"
-                        disabled={Boolean(product.productId)}
-                      />
-                    </label>
-                    <label>
-                      所属步骤
-                      <select value={product.step} onChange={(event) => updateProduct(product.id, { step: event.target.value })}>
-                        {washStepOptions.map((step) => (
-                          <option key={step}>{step}</option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                  <div className="two-cols">
-                    <label>
-                      类型
-                      <select
-                        value={product.category}
-                        disabled={Boolean(product.productId)}
-                        onChange={(event) => updateProduct(product.id, { category: event.target.value })}
-                      >
-                        {productCategoryOptions.map((category) => (
-                          <option key={category}>{category}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      稀释比例
-                      <input
-                        value={product.dilutionRatio}
-                        onChange={(event) => updateProduct(product.id, { dilutionRatio: event.target.value })}
-                        placeholder="例如 1:10"
-                      />
-                    </label>
-                  </div>
-                  {!product.productId && (
-                    <div className="three-cols">
+          {draft.products.length === 0 ? (
+            <p className="wash-products-empty">本次没有需要记录的耗材，可以直接保存。</p>
+          ) : (
+            <div className="product-usage-list">
+              {draft.products.map((product) => {
+                const estimatedCost = estimateWashProductCost(product);
+                const selectedWarehouseProduct = washProducts.find(
+                  (warehouseProduct) => warehouseProduct.id === product.productId,
+                );
+                return (
+                  <div className="product-usage-row" key={product.id}>
+                    <div className="product-usage-heading">
                       <label>
-                        购买价
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={product.purchasePrice}
-                          onChange={(event) => updateProduct(product.id, { purchasePrice: event.target.value })}
-                        />
-                      </label>
-                      <label>
-                        总容量
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={product.capacity}
-                          onChange={(event) => updateProduct(product.id, { capacity: event.target.value })}
-                        />
-                      </label>
-                      <label>
-                        容量单位
+                        使用的耗材
                         <select
-                          value={product.capacityUnit}
+                          value={product.productId}
+                          onChange={(event) => selectWarehouseProduct(product.id, event.target.value)}
+                        >
+                          <option value="">手动输入 / 当场添加</option>
+                          {washProducts.map((warehouseProduct) => (
+                            <option key={warehouseProduct.id} value={warehouseProduct.id}>
+                              {warehouseProduct.name} · {warehouseProduct.category}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button className="text-button danger" type="button" onClick={() => removeProduct(product.id)}>
+                        移除
+                      </button>
+                    </div>
+                    {selectedWarehouseProduct && (
+                      <p className="inline-help">购买价格和总容量使用仓库记录，本次用量可以留空。</p>
+                    )}
+                    {!product.productId && (
+                      <div className="two-cols">
+                        <label>
+                          名称
+                          <input
+                            value={product.name}
+                            onChange={(event) => updateProduct(product.id, { name: event.target.value })}
+                            placeholder="例如 PA 预洗液"
+                          />
+                        </label>
+                        <label>
+                          类型
+                          <select
+                            value={product.category}
+                            onChange={(event) => updateProduct(product.id, { category: event.target.value })}
+                          >
+                            {productCategoryOptions.map((category) => (
+                              <option key={category}>{category}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    )}
+                    <div className="three-cols wash-product-usage-fields">
+                      <label>
+                        使用步骤
+                        <select value={product.step} onChange={(event) => updateProduct(product.id, { step: event.target.value })}>
+                          {washStepOptions.map((step) => (
+                            <option key={step}>{step}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        本次用量
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={product.usedAmount}
+                          onChange={(event) => updateProduct(product.id, { usedAmount: event.target.value })}
+                          placeholder="可选"
+                        />
+                      </label>
+                      <label>
+                        单位
+                        <select
+                          value={product.usedUnit}
                           onChange={(event) =>
-                            updateProduct(product.id, { capacityUnit: event.target.value as WashProductUsage["capacityUnit"] })
+                            updateProduct(product.id, { usedUnit: event.target.value as WashProductUsage["usedUnit"] })
                           }
                         >
                           <option>ml</option>
                           <option>L</option>
                           <option>g</option>
-                          <option>kg</option>
                           <option>pcs</option>
                         </select>
                       </label>
                     </div>
-                  )}
-                  <div className="three-cols">
-                    <label>
-                      本次用量
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={product.usedAmount}
-                        onChange={(event) => updateProduct(product.id, { usedAmount: event.target.value })}
-                      />
-                    </label>
-                    <label>
-                      用量单位
-                      <select
-                        value={product.usedUnit}
-                        onChange={(event) =>
-                          updateProduct(product.id, { usedUnit: event.target.value as WashProductUsage["usedUnit"] })
-                        }
-                      >
-                        <option>ml</option>
-                        <option>L</option>
-                        <option>g</option>
-                        <option>pcs</option>
-                      </select>
-                    </label>
-                    <label>
-                      本次成本
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={product.estimatedCost}
-                        onChange={(event) => updateProduct(product.id, { estimatedCost: event.target.value })}
-                        placeholder={estimatedCost > 0 ? money(estimatedCost) : "可选"}
-                      />
-                    </label>
+                    <details className="wash-product-details">
+                      <summary>
+                        <span>购买与成本信息</span>
+                        <small>可选</small>
+                      </summary>
+                      <div className="wash-product-details-content">
+                        <label>
+                          稀释比例
+                          <input
+                            value={product.dilutionRatio}
+                            onChange={(event) => updateProduct(product.id, { dilutionRatio: event.target.value })}
+                            placeholder="例如 1:10"
+                          />
+                        </label>
+                        {!product.productId && (
+                          <div className="three-cols">
+                            <label>
+                              购买价
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={product.purchasePrice}
+                                onChange={(event) => updateProduct(product.id, { purchasePrice: event.target.value })}
+                              />
+                            </label>
+                            <label>
+                              总容量
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={product.capacity}
+                                onChange={(event) => updateProduct(product.id, { capacity: event.target.value })}
+                              />
+                            </label>
+                            <label>
+                              容量单位
+                              <select
+                                value={product.capacityUnit}
+                                onChange={(event) =>
+                                  updateProduct(product.id, {
+                                    capacityUnit: event.target.value as WashProductUsage["capacityUnit"],
+                                  })
+                                }
+                              >
+                                <option>ml</option>
+                                <option>L</option>
+                                <option>g</option>
+                                <option>kg</option>
+                                <option>pcs</option>
+                              </select>
+                            </label>
+                          </div>
+                        )}
+                        <div className="two-cols">
+                          <label>
+                            本次耗材成本
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={product.estimatedCost}
+                              onChange={(event) => updateProduct(product.id, { estimatedCost: event.target.value })}
+                              placeholder={estimatedCost > 0 ? money(estimatedCost) : "自动估算或留空"}
+                            />
+                          </label>
+                          <label>
+                            备注
+                            <input
+                              value={product.note}
+                              onChange={(event) => updateProduct(product.id, { note: event.target.value })}
+                              placeholder="可选"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </details>
+                    <div className="record-actions">
+                      <span className="muted">
+                        {estimatedCost > 0 ? `预计耗材成本 ${money(estimatedCost)}` : "耗材成本可稍后补充"}
+                      </span>
+                      {!product.productId && (
+                        <button className="text-button" type="button" onClick={() => createWarehouseProductFromUsage(product)}>
+                          加入仓库
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="record-actions">
-                    <span className="muted">
-                      估算 {estimatedCost > 0 ? money(estimatedCost) : "待补充价格/容量/用量"}
-                    </span>
-                    {!product.productId && (
-                      <button className="text-button" type="button" onClick={() => createWarehouseProductFromUsage(product)}>
-                        加入仓库
-                      </button>
-                    )}
-                    <button className="text-button danger" type="button" onClick={() => removeProduct(product.id)}>
-                      移除
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </section>
       )}
-      <div className="two-cols">
-        <label>
-          下次建议日期
-          <input
-            type="date"
-            value={draft.nextSuggestedDate}
-            onChange={(event) => onChange({ ...draft, nextSuggestedDate: event.target.value })}
-          />
-        </label>
-        <label>
-          备注
-          <input value={draft.notes} onChange={(event) => onChange({ ...draft, notes: event.target.value })} />
-        </label>
+      <div className="wash-cost-summary" aria-live="polite">
+        <div>
+          <span>本次已知支出</span>
+          <small>{isDiy ? "场地费与可估算的耗材成本自动合计" : "按本次实付金额记录"}</small>
+        </div>
+        <strong>{resolvedCost > 0 ? money(resolvedCost) : "暂未填写"}</strong>
       </div>
+      <details className="wash-more-fields">
+        <summary>
+          <span>
+            <Info size={15} aria-hidden="true" />
+            更多信息
+          </span>
+          <small>里程、用时、评分与备注</small>
+        </summary>
+        <div className="wash-more-fields-content">
+          <div className="two-cols">
+            <label>
+              <span className="label-with-info">
+                洗车时车辆总里程 km
+                <Info size={13} aria-hidden="true" />
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="0.1"
+                value={draft.odometer}
+                onChange={(event) => onChange({ ...draft, odometer: event.target.value })}
+                placeholder="选填，不影响洗车统计"
+              />
+              <small className="field-help">仅用于以后按车辆使用里程回看，不参与费用计算。</small>
+            </label>
+            <label>
+              用时分钟
+              <input
+                type="number"
+                min="0"
+                value={draft.minutes}
+                onChange={(event) => onChange({ ...draft, minutes: event.target.value })}
+                placeholder="选填"
+              />
+            </label>
+          </div>
+          {isDiy && (
+            <label>
+              项目 / 步骤
+              <input
+                value={draft.items}
+                onChange={(event) => onChange({ ...draft, items: event.target.value })}
+                placeholder="例如 预洗, 正洗, 轮毂"
+              />
+            </label>
+          )}
+          {!isDiy && (
+            <label>
+              地点
+              <input
+                value={draft.location}
+                onChange={(event) => onChange({ ...draft, location: event.target.value })}
+                placeholder="选填"
+              />
+            </label>
+          )}
+          <div className="two-cols">
+            <label>
+              效果评分
+              <select
+                value={draft.effectRating}
+                onChange={(event) => onChange({ ...draft, effectRating: event.target.value })}
+              >
+                <option value="">不评分</option>
+                <option value="5">5 - 很满意</option>
+                <option value="4">4 - 不错</option>
+                <option value="3">3 - 一般</option>
+                <option value="2">2 - 不太行</option>
+                <option value="1">1 - 翻车</option>
+              </select>
+            </label>
+            <label>
+              下次建议日期
+              <input
+                type="date"
+                value={draft.nextSuggestedDate}
+                onChange={(event) => onChange({ ...draft, nextSuggestedDate: event.target.value })}
+              />
+            </label>
+          </div>
+          <label>
+            备注
+            <input
+              value={draft.notes}
+              onChange={(event) => onChange({ ...draft, notes: event.target.value })}
+              placeholder="选填，例如施工感受、天气或特殊情况"
+            />
+          </label>
+        </div>
+      </details>
     </>
   );
 }
@@ -3251,6 +3319,7 @@ function WashRecordEditor({
   washProducts?: WashProduct[];
 }) {
   const [draft, setDraft] = useState<WashRecordDraft>(() => createWashDraft(record));
+  const resolvedCost = resolveWashCost(draft);
 
   return (
     <form
@@ -3272,7 +3341,7 @@ function WashRecordEditor({
       />
       <div className="form-actions">
         <button className="primary-button" type="submit">
-          保存 · {money(resolveWashCost(draft))}
+          保存{resolvedCost > 0 ? ` · ${money(resolvedCost)}` : ""}
         </button>
         <button className="ghost-button" type="button" onClick={onCancel}>
           取消
