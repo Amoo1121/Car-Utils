@@ -1218,7 +1218,7 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  max-height: 430px;
+  max-height: 560px;
   overflow: auto;
   padding-right: 3px;
 }
@@ -1241,8 +1241,9 @@ button:disabled {
 .wash-preset-card > button {
   min-width: 0;
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  align-content: start;
+  gap: 10px;
+  padding: 12px;
   border: 0;
   color: inherit;
   text-align: left;
@@ -1267,16 +1268,19 @@ button:disabled {
 }
 
 .wash-preset-image {
-  height: 104px;
+  position: relative;
+  height: 138px;
   display: grid;
   place-items: center;
   overflow: hidden;
   border-radius: 6px;
   color: var(--color-text-muted);
-  background: #ffffff;
+  background: #f6f7f4;
 }
 
 .wash-preset-image img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -1285,23 +1289,45 @@ button:disabled {
 .wash-preset-card-copy {
   min-width: 0;
   display: grid;
-  gap: 3px;
+  align-content: start;
+  gap: 5px;
 }
 
-.wash-preset-card-copy small,
-.wash-preset-card-copy span {
-  overflow: hidden;
+.wash-preset-card-copy > span:not(.wash-preset-card-meta),
+.wash-preset-card-meta small {
   color: var(--color-text-muted);
   font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.wash-preset-card-meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wash-preset-card-meta small {
+  min-width: 0;
+}
+
+.wash-preset-card-meta b {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border: 1px solid #c9d5b4;
+  border-radius: 4px;
+  color: #36520f;
+  background: #edf4df;
+  font-size: 11px;
+  line-height: 1;
 }
 
 .wash-preset-card-copy strong {
-  overflow: hidden;
   font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .wash-preset-empty {
@@ -1948,12 +1974,18 @@ select:focus {
   }
 
   .wash-preset-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    max-height: 520px;
+    grid-template-columns: 1fr;
+    max-height: 620px;
+  }
+
+  .wash-preset-card > button {
+    grid-template-columns: 104px minmax(0, 1fr);
+    align-items: center;
   }
 
   .wash-preset-image {
-    height: 92px;
+    width: 104px;
+    height: 104px;
   }
 
   .station-performance-row div:last-child {

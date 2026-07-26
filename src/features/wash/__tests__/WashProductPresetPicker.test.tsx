@@ -34,4 +34,16 @@ describe("WashProductPresetPicker", () => {
     expect(screen.getByRole("button", { name: /Fireball 火球 Bug Cleaner/ })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /CARPRO 卡普 Reset/ })).toBeNull();
   });
+
+  it("shows exact Koch-Chemie codes and full product names", async () => {
+    const user = userEvent.setup();
+    render(<WashProductPresetPicker onSelect={vi.fn()} />);
+
+    await user.click(screen.getByText("从常用产品库选择"));
+    await user.type(screen.getByRole("searchbox", { name: "搜索产品" }), "SFF");
+
+    expect(screen.getByText("SFF")).toBeTruthy();
+    expect(screen.getByText("Super Foam Fruit Bowl")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Super Foam Fruit Bowl/ })).toBeTruthy();
+  });
 });

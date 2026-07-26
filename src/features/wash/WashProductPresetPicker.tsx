@@ -60,7 +60,10 @@ export function WashProductPresetPicker({ selectedPresetId, onSelect }: WashProd
               <button type="button" onClick={() => onSelect(preset)} aria-label={`使用 ${preset.brand} ${preset.name}`}>
                 <WashProductPresetImage alt={`${preset.brand} ${preset.name}`} src={preset.imageUrl} />
                 <span className="wash-preset-card-copy">
-                  <small>{preset.brand}</small>
+                  <span className="wash-preset-card-meta">
+                    <small>{preset.brand}</small>
+                    {preset.shortCode && <b>{preset.shortCode}</b>}
+                  </span>
                   <strong>{preset.name}</strong>
                   <span>
                     {preset.category} · {preset.defaultCapacity} {preset.capacityUnit}
