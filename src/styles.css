@@ -1565,6 +1565,17 @@ button:disabled {
   font-weight: 700;
 }
 
+.form-validation-feedback {
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid #efc5bd;
+  border-radius: 8px;
+  color: #842f25;
+  background: #fff6f4;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

@@ -2513,7 +2513,7 @@ function WashRecordFields({
                             <input
                               type="number"
                               min="0"
-                              step="0.01"
+                              step="any"
                               value={product.estimatedCost}
                               onChange={(event) => updateProduct(product.id, { estimatedCost: event.target.value })}
                               placeholder={estimatedCost > 0 ? money(estimatedCost) : "自动估算或留空"}
@@ -3536,13 +3536,20 @@ function WashRecordEditor({
   washProducts?: WashProduct[];
 }) {
   const [draft, setDraft] = useState<WashRecordDraft>(() => createWashDraft(record));
+  const [validationMessage, setValidationMessage] = useState("");
   const resolvedCost = resolveWashCost(draft);
 
   return (
     <form
       className="edit-record-form"
+      onInvalid={(event) => {
+        const field = event.target as HTMLInputElement;
+        field.closest("details")?.setAttribute("open", "");
+        setValidationMessage(field.validationMessage || "请检查表单中标出的字段。");
+      }}
       onSubmit={(event) => {
         event.preventDefault();
+        setValidationMessage("");
         onSave(buildWashRecord(record.vehicleId, draft));
       }}
     >
@@ -3552,10 +3559,18 @@ function WashRecordEditor({
       </div>
       <WashRecordFields
         draft={draft}
-        onChange={setDraft}
+        onChange={(nextDraft) => {
+          setValidationMessage("");
+          setDraft(nextDraft);
+        }}
         onCreateProduct={onCreateProduct ?? (() => undefined)}
         washProducts={washProducts ?? []}
       />
+      {validationMessage && (
+        <p className="form-validation-feedback" role="alert">
+          暂时无法保存：{validationMessage}
+        </p>
+      )}
       <div className="form-actions">
         <button className="primary-button" type="submit">
           保存{resolvedCost > 0 ? ` · ${money(resolvedCost)}` : ""}
