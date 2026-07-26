@@ -10,6 +10,7 @@ import {
   getDefaultWashStepForProductCategory,
   getSuggestedWashUsageUnit,
   resolveWashCost,
+  resolveWashProductUsageCost,
   restoreWashRecordInStore,
   softDeleteWashRecordInStore,
   updateWashRecordInStore,
@@ -115,13 +116,69 @@ describe("washService", () => {
     });
   });
 
-  it("uses itemized DIY costs without double-counting product estimates", () => {
+  it("uses current product details instead of a stale material total", () => {
     const draft = createDraft();
-    draft.materialCost = "12";
+    draft.materialCost = "99";
     draft.cost = "99";
 
     expect(resolveWashCost(draft)).toBe(37);
-    expect(buildWashRecord("vehicle_1", draft).cost).toBe(37);
+    expect(buildWashRecord("vehicle_1", draft)).toMatchObject({
+      cost: 37,
+      materialCost: 12,
+    });
+  });
+
+  it("recalculates an edited history record after another product is added", () => {
+    const draft = createWashDraft({
+      ...baseWashRecord,
+      cost: 17,
+      materialCost: 12,
+      waterElectricityCost: 5,
+      products: [
+        {
+          id: "usage_old",
+          name: "预洗液",
+          purchasePrice: 120,
+          capacity: 1000,
+          capacityUnit: "ml",
+          usedAmount: 100,
+          usedUnit: "ml",
+          estimatedCost: 12,
+        },
+      ],
+    });
+    draft.products.unshift({
+      ...draft.products[0],
+      id: "usage_new",
+      name: "正洗液",
+      purchasePrice: "80",
+      capacity: "1000",
+      usedAmount: "50",
+      estimatedCost: "",
+    });
+
+    expect(resolveWashCost(draft)).toBe(21);
+    expect(buildWashRecord("vehicle_1", draft)).toMatchObject({
+      cost: 21,
+      materialCost: 16,
+      products: [
+        expect.objectContaining({ id: "usage_new", estimatedCost: 4 }),
+        expect.objectContaining({ id: "usage_old", estimatedCost: 12 }),
+      ],
+    });
+  });
+
+  it("uses a manually entered product cost in summaries and saved records", () => {
+    const draft = createDraft();
+    draft.products[0].estimatedCost = "7.5";
+
+    expect(resolveWashProductUsageCost(draft.products[0])).toBe(7.5);
+    expect(resolveWashCost(draft)).toBe(32.5);
+    expect(buildWashRecord("vehicle_1", draft)).toMatchObject({
+      cost: 32.5,
+      materialCost: 7.5,
+      products: [expect.objectContaining({ estimatedCost: 7.5, cost: 7.5 })],
+    });
   });
 
   it("keeps a legacy total when no itemized DIY cost is available", () => {

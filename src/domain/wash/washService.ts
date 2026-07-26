@@ -182,8 +182,7 @@ export function getSuggestedWashUsageUnit(
 
 export function buildWashRecord(vehicleId: string, draft: WashRecordDraft): WashRecordInput {
   const products = draft.washType === "diy" ? buildWashProductUsages(draft.products) : [];
-  const estimatedProductCost = products.reduce((sum, product) => sum + (product.estimatedCost ?? product.cost ?? 0), 0);
-  const materialCost = draft.materialCost ? Number(draft.materialCost) : estimatedProductCost || undefined;
+  const materialCost = draft.washType === "diy" ? resolveWashMaterialCost(draft) : toOptionalNumber(draft.materialCost);
   const resolvedCost = resolveWashCost(draft);
 
   return {
@@ -214,7 +213,8 @@ export function buildWashProductUsages(products: WashProductUsageDraft[]): WashP
   return products
     .filter((product) => product.name.trim())
     .map((product) => {
-      const estimatedCost = product.estimatedCost ? Number(product.estimatedCost) : estimateWashProductCost(product) || undefined;
+      const costResult = getWashProductUsageCostResult(product);
+      const estimatedCost = costResult.known ? costResult.cost : undefined;
       return {
         id: product.id,
         productId: product.productId || undefined,
@@ -237,22 +237,23 @@ export function buildWashProductUsages(products: WashProductUsageDraft[]): WashP
 export function resolveWashCost(draft: WashRecordDraft) {
   if (draft.washType !== "diy") return draft.cost ? Number(draft.cost) : 0;
 
-  const productCost = draft.products.reduce((sum, product) => {
-    const cost = product.estimatedCost ? Number(product.estimatedCost) : estimateWashProductCost(product);
-    return sum + cost;
-  }, 0);
+  const materialCost = resolveWashMaterialCost(draft);
 
   const itemizedCost =
     Number(draft.laborCost || 0) +
-    (draft.materialCost ? Number(draft.materialCost) : productCost) +
+    (materialCost ?? 0) +
     Number(draft.waterElectricityCost || 0) +
     Number(draft.locationCost || 0);
   const hasItemizedCost = [draft.laborCost, draft.materialCost, draft.waterElectricityCost, draft.locationCost].some(
     Boolean,
-  ) || productCost > 0;
+  ) || materialCost != null;
 
   if (hasItemizedCost) return itemizedCost;
   return draft.cost ? Number(draft.cost) : 0;
+}
+
+export function resolveWashProductUsageCost(product: WashProductUsageDraft) {
+  return getWashProductUsageCostResult(product).cost;
 }
 
 export function estimateWashProductCost(product: WashProductUsageDraft) {
@@ -264,6 +265,35 @@ export function estimateWashProductCost(product: WashProductUsageDraft) {
 
   if (purchasePrice <= 0 || capacityBase <= 0 || usedBase <= 0) return 0;
   return (purchasePrice / capacityBase) * usedBase;
+}
+
+function resolveWashMaterialCost(draft: WashRecordDraft) {
+  const productResults = draft.products
+    .filter((product) => product.name.trim())
+    .map(getWashProductUsageCostResult);
+
+  if (productResults.some((result) => result.known)) {
+    return productResults.reduce((sum, result) => sum + result.cost, 0);
+  }
+
+  return toOptionalNumber(draft.materialCost);
+}
+
+function getWashProductUsageCostResult(product: WashProductUsageDraft) {
+  const manualCost = toOptionalNumber(product.estimatedCost);
+  if (manualCost != null) return { cost: manualCost, known: true };
+
+  const estimatedCost = estimateWashProductCost(product);
+  return {
+    cost: estimatedCost,
+    known: estimatedCost > 0,
+  };
+}
+
+function toOptionalNumber(value: string) {
+  if (!value.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 export function convertWashAmount(amount: number, unit: WashProductUsage["capacityUnit"] | WashProductUsage["usedUnit"]) {

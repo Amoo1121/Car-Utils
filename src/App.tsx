@@ -81,10 +81,10 @@ import {
   createEmptyWashDraft,
   createEmptyWashProductUsageDraft,
   createWashDraft,
-  estimateWashProductCost,
   getDefaultWashStepForProductCategory,
   getSuggestedWashUsageUnit,
   resolveWashCost,
+  resolveWashProductUsageCost,
   restoreWashRecordInStore,
   softDeleteWashRecordInStore,
   updateWashRecordInStore,
@@ -2188,12 +2188,13 @@ function WashRecordFields({
   function addProduct() {
     const product = createEmptyWashProductUsageDraft();
     setNewProductId(product.id);
-    onChange({ ...draft, products: [product, ...draft.products] });
+    onChange({ ...draft, materialCost: "", products: [product, ...draft.products] });
   }
 
   function updateProduct(productId: string, nextProduct: Partial<WashProductUsageDraft>) {
     onChange({
       ...draft,
+      materialCost: "",
       products: draft.products.map((product) =>
         product.id === productId ? { ...product, ...nextProduct } : product,
       ),
@@ -2201,7 +2202,11 @@ function WashRecordFields({
   }
 
   function removeProduct(productId: string) {
-    onChange({ ...draft, products: draft.products.filter((product) => product.id !== productId) });
+    onChange({
+      ...draft,
+      materialCost: "",
+      products: draft.products.filter((product) => product.id !== productId),
+    });
   }
 
   function selectWarehouseProduct(productRowId: string, productId: string) {
@@ -2326,7 +2331,7 @@ function WashRecordFields({
           ) : (
             <div className="product-usage-list">
               {draft.products.map((product, index) => {
-                const estimatedCost = estimateWashProductCost(product);
+                const estimatedCost = resolveWashProductUsageCost(product);
                 const selectedWarehouseProduct = washProducts.find(
                   (warehouseProduct) => warehouseProduct.id === product.productId,
                 );
@@ -2527,7 +2532,11 @@ function WashRecordFields({
                     </details>
                     <div className="record-actions">
                       <span className="muted">
-                        {estimatedCost > 0 ? `预计耗材成本 ${money(estimatedCost)}` : "耗材成本可稍后补充"}
+                        {estimatedCost > 0
+                          ? `预计耗材成本 ${money(estimatedCost)}`
+                          : product.usedAmount
+                            ? "仓库缺少购买价或容量，可手动填写本次成本"
+                            : "填写本次用量后自动计入总成本"}
                       </span>
                       {!product.productId && (
                         <button className="text-button" type="button" onClick={() => createWarehouseProductFromUsage(product)}>
@@ -3403,6 +3412,7 @@ function WashRecordsPanel({
   washRecords: WashRecord[];
 }) {
   const [editingId, setEditingId] = useState("");
+  const [savedRecordId, setSavedRecordId] = useState("");
   const [recordView, setRecordView] = useState<"active" | "deleted">("active");
   const isDeletedView = recordView === "deleted";
   const recordsToShow = isDeletedView ? deletedWashRecords : washRecords;
@@ -3460,6 +3470,7 @@ function WashRecordsPanel({
                   onSave={(nextRecord) => {
                     onUpdate(record.id, nextRecord);
                     setEditingId("");
+                    setSavedRecordId(record.id);
                   }}
                   washProducts={washProducts}
                 />
@@ -3468,6 +3479,11 @@ function WashRecordsPanel({
                   <div>
                     <strong>{washRecordTitle(record)}</strong>
                     <span>{washRecordMeta(record)}</span>
+                    {savedRecordId === record.id && (
+                      <span className="record-save-feedback" role="status">
+                        已保存
+                      </span>
+                    )}
                   </div>
                   {isDeletedView ? (
                     onRestore && (
@@ -3478,7 +3494,14 @@ function WashRecordsPanel({
                   ) : (
                     <div className="record-actions">
                       {onUpdate && (
-                        <button className="text-button" type="button" onClick={() => setEditingId(record.id)}>
+                        <button
+                          className="text-button"
+                          type="button"
+                          onClick={() => {
+                            setSavedRecordId("");
+                            setEditingId(record.id);
+                          }}
+                        >
                           编辑
                         </button>
                       )}
