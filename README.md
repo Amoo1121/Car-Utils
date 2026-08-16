@@ -1,6 +1,6 @@
 # Car Utils
 
-一个车辆生活账本 GUI 原型，支持本地账户、车辆绑定、加油统计和 DIY 洗车统计。
+一个车辆生活账本 Web 应用，支持密码账户、车辆绑定、加油统计和 DIY 洗车统计。
 
 加油记录中的加油站输入支持历史名称建议和模糊匹配；建议会优先显示当前车辆常用、使用频率较高和最近使用的站点，同时仍允许直接输入新名称。
 
@@ -10,13 +10,15 @@
 
 本机开发版使用 Docker 中的 SQLite 作为主要持久化存储：
 
-- React 前端通过 `/api/store` 读写本地后端。
+- React 前端通过受认证保护的 `/api/store` 读写本地后端。
+- 密码使用 scrypt 加盐哈希保存；浏览器会话使用 HttpOnly Cookie，SQLite 中只保存会话令牌的哈希。
+- 每个认证账户拥有独立的 Store，不能读取其他账户的车辆账本。
 - SQLite 数据库位于 Docker volume `car-utils_car-utils-sqlite`。
 - 浏览器 `localStorage` key `car-utils-store-v1` 继续保留为即时备份。
 - 后端短暂不可用时，页面会降级使用浏览器备份，不会白屏。
 - 后端恢复后，前端会通过版本检查和现有 merge 规则写回 SQLite。
 
-登录后仍可在“同步”tab 导出 JSON 备份，也可以导入备份并与本机数据合并。
+登录后仍可在“同步”tab 导出 JSON 备份，也可以导入备份并与当前账户数据合并。导入和 CloudBase 合并不会把其他本地账户的数据写进当前认证账户。
 
 当前 Web 版已经加入 CloudBase 云同步 MVP：
 
@@ -43,6 +45,8 @@ npm run dev
 ```
 
 `npm run dev` 会自动执行 `docker compose up -d --build --wait`，等待本地后端通过健康检查，然后运行 Vite。不需要再单独执行 Docker 命令。
+
+首次打开时选择“注册”。如果你在无密码版本中已经记录过数据，请使用当时完全相同的邮箱注册；系统会忽略邮箱大小写和首尾空格，并自动认领该邮箱名下的车辆、加油、洗车、耗材和费用记录。旧数据仍会保留在原备份中，不会因认领而被硬删除。
 
 Vite 默认使用 5173 端口，也可以通过 `.env` 中的 `CAR_UTILS_WEB_PORT` 修改。如果提示端口已经占用，说明已有一个前端开发进程正在运行。请回到原终端停止旧进程，或关闭旧进程后重新执行 `npm run dev`。不要临时切换到其他端口，因为不同端口拥有相互隔离的浏览器 `localStorage`。
 
@@ -89,13 +93,21 @@ curl http://localhost:3001/api/health
 {"ok":true}
 ```
 
-如果 SQLite 还没有 Store，但浏览器中有旧数据，打开前端页面后会自动从 `localStorage` 导入。验证是否已经写入 SQLite：
+认证接口验证：
 
 ```bash
-curl -i http://localhost:3001/api/store
+curl -i http://localhost:3001/api/auth/session
 ```
 
-返回 `HTTP 200` 和 Store JSON 表示持久化成功；返回 `404 {"store":null}` 表示尚未触发导入或当前浏览器没有旧数据。
+未登录时应返回 `HTTP 401` 和 `AUTH_REQUIRED`。这表示认证路由存在且正常；如果返回 `Route GET:/api/auth/session not found`，说明 Docker 仍在运行旧镜像，请执行：
+
+```bash
+docker compose up -d --build --force-recreate --wait
+```
+
+`GET /api/store` 现在也必须登录，直接用匿名 curl 会返回 `401`，不能再用匿名请求判断 Store 是否存在。登录页面后可通过页面顶部的数据状态和刷新按钮确认 SQLite 保存状态。
+
+如果 SQLite 中保留着无密码版本的整包 Store，首次用旧邮箱注册并请求 Store 时，后端会按邮箱自动认领。若数据还只存在当前浏览器的 `localStorage`，前端也会在注册后提取同邮箱数据并上传到该账户的 SQLite Store。
 
 验证耗材联网查找：
 
@@ -127,11 +139,19 @@ npm run backend:stop
 docker compose ps -a
 curl http://localhost:3001/api/health
 npm run backend:up
+curl -i http://localhost:3001/api/auth/session
 ```
 
 如果健康检查正常但页面仍显示不可用，请确认浏览器打开的是 `http://localhost:5173/`，然后刷新页面。还可以在浏览器开发者工具 Console 中检查是否有 `/api/store` 请求错误。
 
 容器配置了 `restart: unless-stopped` 和 healthcheck。Docker Desktop 重启后会自动恢复；手动执行过 `npm run backend:stop` 时，需要再次运行 `npm run backend:up`。
+
+如果注册时提示 `Route POST:/api/auth/register not found`，不是邮箱问题，而是后端容器版本落后。执行下面的命令重建容器，然后刷新登录页：
+
+```bash
+docker compose up -d --build --force-recreate --wait
+curl -i http://localhost:3001/api/auth/session
+```
 
 ## 手机访问本机开发服务
 
@@ -192,4 +212,4 @@ npx --yes -p @cloudbase/cli tcb hosting deploy dist -e car-utils-sync-d8gc5l3xlb
 
 注意：出门同步请使用 CloudBase 静态托管 HTTPS 地址。更换手机、清理浏览器数据或切换浏览器前，建议仍定期在“同步”页面导出 JSON 备份。
 
-本机开发环境以 Docker SQLite 为主存储，浏览器 `localStorage` 为本地备份。CloudBase 静态托管页面无法直接访问你 Mac 上的 Docker 后端，因此出门使用时仍依赖浏览器备份与 CloudBase 同步。后续可以继续接入微信小程序登录、车型查询 API 和更细的云端权限规则。
+本机开发环境以 Docker SQLite 为主存储，浏览器 `localStorage` 为本地备份。当前密码鉴权服务也运行在本机 Docker 中；CloudBase 静态托管页面无法直接访问你 Mac 上的认证与 SQLite 后端。要在外网使用同一套账户，下一步需要把后端部署到公网 HTTPS 服务，再将 `VITE_CAR_UTILS_API_BASE_URL` 指向该服务。

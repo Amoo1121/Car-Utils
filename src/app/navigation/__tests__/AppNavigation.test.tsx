@@ -33,6 +33,17 @@ describe("AppNavigation", () => {
     expect(props.onCloseMobile).toHaveBeenCalledOnce();
   });
 
+  it("keeps account administration in the bottom user area", async () => {
+    const user = userEvent.setup();
+    const props = createProps();
+    render(<AppNavigation {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "账户与权限" }));
+
+    expect(props.onChange).toHaveBeenCalledWith("users");
+    expect(props.onCloseMobile).toHaveBeenCalledOnce();
+  });
+
   it("exposes mobile open and close controls without changing desktop behavior", async () => {
     const user = userEvent.setup();
     const props = createProps({ mobileOpen: true });

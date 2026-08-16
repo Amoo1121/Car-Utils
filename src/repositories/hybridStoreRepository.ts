@@ -1,4 +1,4 @@
-import { mergeStores, normalizeStore, type Store } from "../shared/carData";
+import { STORAGE_KEY, mergeStores, normalizeStore, type Store } from "../shared/carData";
 import { StoreVersionConflictError, createHttpStoreRepository } from "./httpStoreRepository";
 import { createLocalStorageStoreRepository } from "./localStorageStoreRepository";
 import type {
@@ -222,6 +222,14 @@ export function createHybridStoreRepository(
 }
 
 export const storeRepository = createHybridStoreRepository();
+
+export function createAuthenticatedStoreRepository(userId: string) {
+  const scopedStorageKey = `${STORAGE_KEY}:auth:${encodeURIComponent(userId)}`;
+  return createHybridStoreRepository(
+    createHttpStoreRepository(),
+    createLocalStorageStoreRepository(undefined, scopedStorageKey),
+  );
+}
 
 function normalizeError(error: unknown) {
   return error instanceof Error ? error : new Error(String(error || "Unknown store repository error"));

@@ -88,13 +88,22 @@ export function fuzzyMatch(text: string, query: string) {
   return true;
 }
 
-export function matchesFuelDateFilter(record: FuelRecord, dateFilter: FuelDateFilter) {
+export function matchesFuelDateFilter(
+  record: FuelRecord,
+  dateFilter: FuelDateFilter,
+  customStartDate = "",
+  customEndDate = "",
+) {
   const now = new Date();
   const year = String(now.getFullYear());
   const month = `${year}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   if (dateFilter === "month") return record.date.startsWith(month);
   if (dateFilter === "year") return record.date.startsWith(year);
+  if (dateFilter === "custom") {
+    if (customStartDate && record.date < customStartDate) return false;
+    if (customEndDate && record.date > customEndDate) return false;
+  }
   return true;
 }
 

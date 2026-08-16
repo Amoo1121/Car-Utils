@@ -8,7 +8,10 @@ services:
       PORT: "${CAR_UTILS_API_INTERNAL_PORT:-3001}"
       HOST: "0.0.0.0"
       CAR_UTILS_DB_PATH: /app/data/car-utils.sqlite
-      CORS_ORIGIN: "*"
+      CORS_ORIGIN: "http://localhost:${CAR_UTILS_WEB_PORT:-5173}"
+      AUTH_SESSION_DAYS: "${AUTH_SESSION_DAYS:-30}"
+      AUTH_COOKIE_SECURE: "${AUTH_COOKIE_SECURE:-false}"
+      AUTH_PASSWORD_PEPPER: "${AUTH_PASSWORD_PEPPER:-}"
     ports:
       - "${CAR_UTILS_API_PORT:-3001}:${CAR_UTILS_API_INTERNAL_PORT:-3001}"
     volumes:

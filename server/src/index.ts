@@ -1,5 +1,7 @@
 import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
+import { SQLiteAuthRepository } from "./authRepository.js";
+import { registerAuthRoutes } from "./authRoutes.js";
 import { openDatabase } from "./db.js";
 import { lookupProductMetadata, type ProductLookup } from "./productLookup.js";
 import { registerProductLookupRoutes } from "./productLookupRoutes.js";
@@ -15,14 +17,20 @@ export type CreateServerOptions = {
 export function createServer(options: CreateServerOptions = {}) {
   const database = openDatabase(options.databasePath);
   const repository = new SQLiteStoreRepository(database);
+  const authRepository = new SQLiteAuthRepository(database);
   const app = Fastify({
     logger: options.logger ?? true,
   });
 
   app.addHook("onRequest", async (request, reply) => {
-    reply.header("Access-Control-Allow-Origin", process.env.CORS_ORIGIN || "*");
+    const configuredOrigin = process.env.CORS_ORIGIN;
+    if (configuredOrigin && request.headers.origin === configuredOrigin) {
+      reply.header("Access-Control-Allow-Origin", configuredOrigin);
+      reply.header("Access-Control-Allow-Credentials", "true");
+      reply.header("Vary", "Origin");
+    }
     reply.header("Access-Control-Allow-Headers", "Content-Type, If-Match, If-None-Match, X-Car-Utils-Expected-Version");
-    reply.header("Access-Control-Allow-Methods", "GET,PUT,OPTIONS");
+    reply.header("Access-Control-Allow-Methods", "GET,PUT,POST,PATCH,DELETE,OPTIONS");
     reply.header("Access-Control-Expose-Headers", "X-Car-Utils-Store-Version, X-Car-Utils-Updated-At");
 
     if (request.method === "OPTIONS") {
@@ -34,7 +42,8 @@ export function createServer(options: CreateServerOptions = {}) {
     database.close();
   });
 
-  registerStoreRoutes(app, repository);
+  registerAuthRoutes(app, authRepository);
+  registerStoreRoutes(app, repository, authRepository);
   registerProductLookupRoutes(app, options.productLookup ?? lookupProductMetadata);
   return app;
 }

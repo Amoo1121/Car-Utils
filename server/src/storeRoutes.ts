@@ -1,11 +1,19 @@
 import type { FastifyInstance } from "fastify";
+import { requireAuthenticatedUser } from "./authRoutes.js";
+import type { SQLiteAuthRepository } from "./authRepository.js";
 import { StoreVersionConflictError, type SQLiteStoreRepository, type StoreRecord } from "./storeRepository.js";
 
-export function registerStoreRoutes(app: FastifyInstance, repository: SQLiteStoreRepository) {
+export function registerStoreRoutes(
+  app: FastifyInstance,
+  repository: SQLiteStoreRepository,
+  authRepository: SQLiteAuthRepository,
+) {
   app.get("/api/health", async () => ({ ok: true }));
 
-  app.get("/api/store", async (_request, reply) => {
-    const record = repository.getStore();
+  app.get("/api/store", async (request, reply) => {
+    const user = requireAuthenticatedUser(request, reply, authRepository);
+    if (!user) return;
+    const record = repository.getStore(user.id) ?? repository.claimLegacyStore(user.id, user.email);
     if (!record) {
       return reply.code(404).send({ store: null });
     }
@@ -15,8 +23,10 @@ export function registerStoreRoutes(app: FastifyInstance, repository: SQLiteStor
   });
 
   app.put("/api/store", async (request, reply) => {
+    const user = requireAuthenticatedUser(request, reply, authRepository);
+    if (!user) return;
     try {
-      const savedRecord = repository.saveStore(request.body, {
+      const savedRecord = repository.saveStore(user.id, request.body, {
         expectedVersion: parseExpectedVersion(request.headers),
       });
       setStoreVersionHeaders(reply, savedRecord);

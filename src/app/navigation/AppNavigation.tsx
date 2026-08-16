@@ -9,11 +9,12 @@ import {
   PanelLeftOpen,
   Sparkles,
   UserRound,
+  UsersRound,
   Wrench,
   X,
 } from "lucide-react";
 
-export type AppTab = "overview" | "analytics" | "fuel" | "wash" | "vehicles" | "sync";
+export type AppTab = "overview" | "analytics" | "fuel" | "wash" | "vehicles" | "users" | "sync";
 
 export const appTabTitles: Record<AppTab, string> = {
   overview: "车辆概览",
@@ -21,6 +22,7 @@ export const appTabTitles: Record<AppTab, string> = {
   fuel: "加油记录",
   wash: "洗车护理",
   vehicles: "车辆管理",
+  users: "账户与权限",
   sync: "数据同步",
 };
 
@@ -30,6 +32,7 @@ export const appTabDescriptions: Record<AppTab, string> = {
   fuel: "记录每次补能并维护可追溯的加油账单",
   wash: "管理洗车记录、护理流程与耗材库存",
   vehicles: "维护车辆资料、状态与历史数据归属",
+  users: "管理登录资料、密码、用户与访问权限",
   sync: "管理本地持久化、备份与跨端同步",
 };
 
@@ -137,6 +140,17 @@ export function AppNavigation({
         </nav>
 
         <div className="nav-user">
+          <button
+            aria-current={activeTab === "users" ? "page" : undefined}
+            aria-label="账户与权限"
+            className={activeTab === "users" ? "nav-tab active" : "nav-tab"}
+            title={collapsed ? "账户与权限" : undefined}
+            type="button"
+            onClick={() => selectTab("users")}
+          >
+            <UsersRound size={17} />
+            <span>账户与权限</span>
+          </button>
           <div className="nav-user-chip" title={userName}>
             <div className="nav-user-avatar">
               <UserRound size={17} />

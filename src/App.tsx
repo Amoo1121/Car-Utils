@@ -27,19 +27,16 @@ import {
   matchesFuelQuery,
   mergeStores,
   normalizeStore,
-  normalizeEmail,
   parseStoreBackup,
   recordCost,
   today,
   vehiclePresets,
-  withCreatedTimestamps,
   withUpdatedTimestamp,
   type EnergyType,
   type FuelDateFilter,
   type FuelRecord,
   type Store,
   type StoreCounts,
-  type User,
   type Vehicle,
   type WashRecord,
   type WashProductUsage,
@@ -54,8 +51,10 @@ import {
   validateCloudSyncConfig,
   type CloudSyncConfig,
 } from "./shared/cloudSync";
-import { storeRepository } from "./repositories/hybridStoreRepository";
-import type { PersistenceStatusSnapshot } from "./repositories/storeRepository";
+import { createAuthenticatedStoreRepository } from "./repositories/hybridStoreRepository";
+import { createLocalStorageStoreRepository } from "./repositories/localStorageStoreRepository";
+import { authRepository, type AuthCredentials, type AuthUser } from "./repositories/authRepository";
+import type { PersistenceStatusSnapshot, StoreRepository } from "./repositories/storeRepository";
 import {
   addVehicleToStore,
   archiveVehicleInStore,
@@ -116,6 +115,8 @@ import {
 } from "./domain/analytics/fuelAnalytics";
 import { calculateWashOverview, calculateWashProductInventory } from "./domain/analytics/washAnalytics";
 import { FuelStationField } from "./features/fuel/FuelStationField";
+import { AccountManager } from "./features/auth/AccountManager";
+import { AuthScreen, type AuthMode } from "./features/auth/AuthScreen";
 import { WashProductPresetImage, WashProductPresetPicker } from "./features/wash/WashProductPresetPicker";
 import { WashProductMetadataLookup } from "./features/wash/WashProductMetadataLookup";
 import {
@@ -124,21 +125,10 @@ import {
   appTabTitles,
   type AppTab,
 } from "./app/navigation/AppNavigation";
+import { mergeAuthenticatedStoreSources, scopeStoreToAuthenticatedUser } from "./domain/user/authStore";
 
 type FuelSubTab = "record" | "history";
 type WashSubTab = "record" | "warehouse" | "history";
-
-function saveStore(store: Store) {
-  void storeRepository.save(store);
-}
-
-function makeId(prefix: string) {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return `${prefix}_${crypto.randomUUID()}`;
-  }
-
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-}
 
 function money(value: number) {
   return new Intl.NumberFormat("zh-CN", {
@@ -190,67 +180,103 @@ function getPersistenceStatusContent(snapshot: PersistenceStatusSnapshot) {
 
 export function App() {
   const [store, setStore] = useState<Store>(() => normalizeStore(emptyStore));
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isStoreLoading, setIsStoreLoading] = useState(true);
-  const [persistenceStatus, setPersistenceStatus] = useState<PersistenceStatusSnapshot | null>(() =>
-    storeRepository.getPersistenceStatus(),
-  );
+  const [persistenceStatus, setPersistenceStatus] = useState<PersistenceStatusSnapshot | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<AppTab>("overview");
   const [navCollapsed, setNavCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [isRefreshingStore, setIsRefreshingStore] = useState(false);
+  const storeRepositoryRef = useRef<StoreRepository | null>(null);
+  const unsubscribePersistenceRef = useRef<(() => void) | null>(null);
   const currentUser = store.users.find((user) => user.id === store.currentUserId);
 
   useEffect(() => {
     let isMounted = true;
-    const unsubscribePersistenceStatus = storeRepository.subscribePersistenceStatus((snapshot) => {
-      if (isMounted) setPersistenceStatus(snapshot);
-    });
-
-    storeRepository
-      .load()
-      .then((result) => {
-        if (!isMounted) return;
-        setStore(result.store);
+    authRepository
+      .getSession()
+      .then(async (user) => {
+        if (!isMounted || !user) return;
+        setAuthUser(user);
+        await initializeStoreForUser(user, () => isMounted);
       })
       .catch((error) => {
-        console.warn("Failed to load Car Utils store.", error);
-        if (!isMounted) return;
-        setStore(normalizeStore(emptyStore));
+        console.warn("Failed to restore the authenticated Car Utils session.", error);
       })
       .finally(() => {
-        if (isMounted) setIsStoreLoading(false);
+        if (isMounted) {
+          setIsAuthLoading(false);
+          setIsStoreLoading(false);
+        }
       });
 
     return () => {
       isMounted = false;
-      unsubscribePersistenceStatus();
+      unsubscribePersistenceRef.current?.();
     };
   }, []);
 
+  async function initializeStoreForUser(user: AuthUser, isActive = () => true) {
+    const repository = createAuthenticatedStoreRepository(user.id);
+    unsubscribePersistenceRef.current?.();
+    storeRepositoryRef.current = repository;
+    unsubscribePersistenceRef.current = repository.subscribePersistenceStatus((snapshot) => {
+      if (isActive()) setPersistenceStatus(snapshot);
+    });
+
+    const result = await repository.load();
+    if (!isActive()) return;
+    const legacyStore = createLocalStorageStoreRepository().loadLegacyStore();
+    const merged = mergeAuthenticatedStoreSources(result.store, legacyStore, user);
+    const scopedStore = merged.store;
+    if (result.source === "empty" || merged.importedLegacy) await repository.replace(scopedStore);
+    if (isActive()) setStore(scopedStore);
+  }
+
   function commit(next: Store) {
     setStore(next);
-    saveStore(next);
+    void storeRepositoryRef.current?.save(next);
   }
 
-  function login(name: string, email: string) {
-    const trimmedEmail = normalizeEmail(email);
-    const normalizedStore = normalizeStore(store);
-    const existingUser = normalizedStore.users.find((user) => normalizeEmail(user.email) === trimmedEmail);
-    const user =
-      existingUser ??
-      withCreatedTimestamps({
-        id: makeId("user"),
-        name: name.trim() || trimmedEmail.split("@")[0] || "车主",
-        email: trimmedEmail,
-      } satisfies User);
-
-    const users = existingUser ? normalizedStore.users : [...normalizedStore.users, user];
-    commit({ ...normalizedStore, users, currentUserId: user.id });
+  async function authenticate(mode: AuthMode, credentials: AuthCredentials) {
+    setIsStoreLoading(true);
+    const user = mode === "login" ? await authRepository.login(credentials) : await authRepository.register(credentials);
+    setAuthUser(user);
+    try {
+      await initializeStoreForUser(user);
+      setActiveTab("overview");
+    } catch (error) {
+      setAuthUser(null);
+      throw error;
+    } finally {
+      setIsStoreLoading(false);
+    }
   }
 
-  function logout() {
-    commit({ ...store, currentUserId: undefined });
+  async function logout() {
+    try {
+      await authRepository.logout();
+    } finally {
+      clearAuthenticatedSession();
+    }
+  }
+
+  function clearAuthenticatedSession() {
+    unsubscribePersistenceRef.current?.();
+    unsubscribePersistenceRef.current = null;
+    storeRepositoryRef.current = null;
+    setAuthUser(null);
+    setStore(normalizeStore(emptyStore));
+    setPersistenceStatus(null);
     setSelectedVehicleId("");
+    setActiveTab("overview");
+  }
+
+  function updateAuthenticatedUser(user: AuthUser) {
+    setAuthUser(user);
+    commit(scopeStoreToAuthenticatedUser(store, user));
   }
 
   function navigateTo(tab: AppTab) {
@@ -381,7 +407,8 @@ export function App() {
   }
 
   function replaceStore(nextStore: Store) {
-    const next = normalizeStore(nextStore);
+    const normalized = normalizeStore(nextStore);
+    const next = authUser ? scopeStoreToAuthenticatedUser(normalized, authUser) : normalized;
     commit(next);
     if (selectedVehicleId && !filterActive(next.vehicles).some((vehicle) => vehicle.id === selectedVehicleId)) {
       setSelectedVehicleId("");
@@ -393,21 +420,38 @@ export function App() {
     return replaceStore(mergeStores(store, importedStore));
   }
 
-  if (isStoreLoading) {
+  async function refreshStore() {
+    const repository = storeRepositoryRef.current;
+    if (!repository || !authUser || isRefreshingStore) return;
+
+    setIsRefreshingStore(true);
+    try {
+      await repository.save(store);
+      const result = await repository.load();
+      const next = scopeStoreToAuthenticatedUser(result.store, authUser);
+      setStore(next);
+      if (selectedVehicleId && !filterActive(next.vehicles).some((vehicle) => vehicle.id === selectedVehicleId)) {
+        setSelectedVehicleId("");
+      }
+    } finally {
+      setIsRefreshingStore(false);
+    }
+  }
+
+  if (isAuthLoading || (authUser && isStoreLoading)) {
     return (
       <main className="login-screen">
         <section className="login-card">
           <h1>Car Utils</h1>
-          <p>正在加载本地数据...</p>
+          <p>{isAuthLoading ? "正在验证登录状态..." : "正在加载账户数据..."}</p>
           {persistenceStatus && <PersistenceStatusBanner snapshot={persistenceStatus} />}
         </section>
       </main>
     );
   }
 
-  if (!currentUser) {
-    return <LoginScreen onLogin={login} />;
-  }
+  if (!authUser) return <AuthScreen onAuthenticate={authenticate} />;
+  if (!currentUser) return null;
 
   const userVehicles = filterActive(store.vehicles).filter((vehicle) => vehicle.userId === currentUser.id);
   const activeUserVehicles = userVehicles.filter((vehicle) => !vehicle.isArchived);
@@ -452,7 +496,7 @@ export function App() {
         onLogout={logout}
         onOpenMobile={() => setMobileNavOpen(true)}
         onToggleCollapsed={() => setNavCollapsed((current) => !current)}
-        userName={currentUser.name}
+        userName={authUser.displayName}
       />
 
       <section className="workspace">
@@ -467,15 +511,20 @@ export function App() {
               <ActiveVehicleSwitcher
                 activeTab={activeTab}
                 activeVehicleId={activeVehicleId}
-                onManageVehicles={() => navigateTo("vehicles")}
                 onSelect={setSelectedVehicleId}
                 vehicles={vehicleSwitcherVehicles}
               />
-              {persistenceStatus && <PersistenceStatusBanner snapshot={persistenceStatus} />}
+              {persistenceStatus && (
+                <PersistenceToolbar
+                  isRefreshing={isRefreshingStore}
+                  onRefresh={refreshStore}
+                  snapshot={persistenceStatus}
+                />
+              )}
             </div>
           </header>
 
-          {activeVehicle || activeTab === "vehicles" || activeTab === "sync" ? (
+          {activeVehicle || activeTab === "vehicles" || activeTab === "users" || activeTab === "sync" ? (
             <>
               {activeTab === "overview" && activeVehicle && (
                 <>
@@ -537,6 +586,13 @@ export function App() {
                   washRecords={userWashRecords}
                 />
               )}
+              {activeTab === "users" && (
+                <AccountManager
+                  onPasswordChanged={clearAuthenticatedSession}
+                  onProfileUpdated={updateAuthenticatedUser}
+                  user={authUser}
+                />
+              )}
               {activeTab === "sync" && <DataSyncPanel store={store} onImport={importStore} onReplace={replaceStore} />}
             </>
           ) : (
@@ -563,24 +619,19 @@ export function App() {
 function ActiveVehicleSwitcher({
   activeTab,
   activeVehicleId,
-  onManageVehicles,
   onSelect,
   vehicles,
 }: {
   activeTab: AppTab;
   activeVehicleId: string;
-  onManageVehicles: () => void;
   onSelect: (id: string) => void;
   vehicles: Vehicle[];
 }) {
-  if (activeTab === "vehicles" || activeTab === "sync") return null;
+  if (activeTab === "vehicles" || activeTab === "users" || activeTab === "sync") return null;
   if (vehicles.length === 0) return null;
 
   return (
     <div className="vehicle-switcher">
-      <div className="vehicle-context-icon" aria-hidden="true">
-        <Car size={21} />
-      </div>
       <label>
         <span>当前车辆</span>
         <select value={activeVehicleId} onChange={(event) => onSelect(event.target.value)}>
@@ -591,9 +642,43 @@ function ActiveVehicleSwitcher({
           ))}
         </select>
       </label>
-      <button className="ghost-button vehicle-manage-button" type="button" onClick={onManageVehicles}>
-        <Wrench size={16} />
-        管理车辆
+    </div>
+  );
+}
+
+function PersistenceToolbar({
+  isRefreshing,
+  onRefresh,
+  snapshot,
+}: {
+  isRefreshing: boolean;
+  onRefresh: () => void;
+  snapshot: PersistenceStatusSnapshot;
+}) {
+  const content = getPersistenceStatusContent(snapshot);
+  const updatedAt = new Date(snapshot.updatedAt).toLocaleTimeString("zh-CN", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <div className={`persistence-toolbar ${content.tone}`} title={snapshot.error?.message}>
+      <Database size={16} />
+      <span>
+        <small>数据状态</small>
+        <strong>{content.label}</strong>
+      </span>
+      <time dateTime={new Date(snapshot.updatedAt).toISOString()}>{updatedAt}</time>
+      <button
+        aria-label="刷新后端数据"
+        className="persistence-refresh-button"
+        disabled={isRefreshing}
+        title="保存当前修改并从 SQLite 重新读取"
+        type="button"
+        onClick={onRefresh}
+      >
+        <RefreshCw className={isRefreshing ? "spinning" : undefined} size={16} />
       </button>
     </div>
   );
@@ -620,20 +705,22 @@ function FuelTab({
 }) {
   const [activeFuelTab, setActiveFuelTab] = useState<FuelSubTab>("record");
   const [dateFilter, setDateFilter] = useState<FuelDateFilter>("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [query, setQuery] = useState("");
   const filteredFuelRecords = useMemo(
     () =>
       fuelRecords.filter(
-        (record) => matchesFuelDateFilter(record, dateFilter) && matchesFuelQuery(record, query),
+        (record) => matchesFuelDateFilter(record, dateFilter, startDate, endDate) && matchesFuelQuery(record, query),
       ),
-    [dateFilter, fuelRecords, query],
+    [dateFilter, endDate, fuelRecords, query, startDate],
   );
   const filteredDeletedFuelRecords = useMemo(
     () =>
       deletedFuelRecords.filter(
-        (record) => matchesFuelDateFilter(record, dateFilter) && matchesFuelQuery(record, query),
+        (record) => matchesFuelDateFilter(record, dateFilter, startDate, endDate) && matchesFuelQuery(record, query),
       ),
-    [dateFilter, deletedFuelRecords, query],
+    [dateFilter, deletedFuelRecords, endDate, query, startDate],
   );
 
   return (
@@ -654,6 +741,10 @@ function FuelTab({
           <FuelFilters
             dateFilter={dateFilter}
             onDateFilterChange={setDateFilter}
+            startDate={startDate}
+            endDate={endDate}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
             query={query}
             onQueryChange={setQuery}
             visibleCount={filteredFuelRecords.length}
@@ -677,13 +768,15 @@ function FuelTab({
 
 function AnalyticsTab({ vehicle, fuelRecords }: { vehicle: Vehicle; fuelRecords: FuelRecord[] }) {
   const [dateFilter, setDateFilter] = useState<FuelDateFilter>("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [query, setQuery] = useState("");
   const filteredFuelRecords = useMemo(
     () =>
       fuelRecords.filter(
-        (record) => matchesFuelDateFilter(record, dateFilter) && matchesFuelQuery(record, query),
+        (record) => matchesFuelDateFilter(record, dateFilter, startDate, endDate) && matchesFuelQuery(record, query),
       ),
-    [dateFilter, fuelRecords, query],
+    [dateFilter, endDate, fuelRecords, query, startDate],
   );
   const overview = useMemo(() => calculateFuelOverview(filteredFuelRecords), [filteredFuelRecords]);
   const knownOdometers = [overview.latestOdometer, vehicle.currentOdometer].filter(
@@ -700,6 +793,10 @@ function AnalyticsTab({ vehicle, fuelRecords }: { vehicle: Vehicle; fuelRecords:
       <FuelFilters
         dateFilter={dateFilter}
         onDateFilterChange={setDateFilter}
+        startDate={startDate}
+        endDate={endDate}
+        onStartDateChange={setStartDate}
+        onEndDateChange={setEndDate}
         query={query}
         onQueryChange={setQuery}
         visibleCount={filteredFuelRecords.length}
@@ -865,9 +962,13 @@ function SubTabBar({
   );
 }
 
-function FuelFilters({
+export function FuelFilters({
   dateFilter,
   onDateFilterChange,
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
   query,
   onQueryChange,
   visibleCount,
@@ -875,6 +976,10 @@ function FuelFilters({
 }: {
   dateFilter: FuelDateFilter;
   onDateFilterChange: (filter: FuelDateFilter) => void;
+  startDate: string;
+  endDate: string;
+  onStartDateChange: (date: string) => void;
+  onEndDateChange: (date: string) => void;
   query: string;
   onQueryChange: (query: string) => void;
   visibleCount: number;
@@ -884,6 +989,7 @@ function FuelFilters({
     { id: "all", label: "全部" },
     { id: "month", label: "本月" },
     { id: "year", label: "本年" },
+    { id: "custom", label: "自定义" },
   ];
 
   return (
@@ -910,6 +1016,29 @@ function FuelFilters({
             </button>
           ))}
         </div>
+        {dateFilter === "custom" && (
+          <div className="custom-date-range" aria-label="自定义日期范围">
+            <label>
+              <span>开始日期</span>
+              <input
+                max={endDate || undefined}
+                type="date"
+                value={startDate}
+                onChange={(event) => onStartDateChange(event.target.value)}
+              />
+            </label>
+            <span aria-hidden="true">至</span>
+            <label>
+              <span>结束日期</span>
+              <input
+                min={startDate || undefined}
+                type="date"
+                value={endDate}
+                onChange={(event) => onEndDateChange(event.target.value)}
+              />
+            </label>
+          </div>
+        )}
         <label className="search-field">
           <span>搜索</span>
           <input
@@ -924,6 +1053,8 @@ function FuelFilters({
             type="button"
             onClick={() => {
               onDateFilterChange("all");
+              onStartDateChange("");
+              onEndDateChange("");
               onQueryChange("");
             }}
           >
@@ -1187,48 +1318,6 @@ function DataCount({ label, value }: { label: string; value: number }) {
 
 function formatCounts(counts: StoreCounts) {
   return `${counts.users} 个账户、${counts.vehicles} 台车、${counts.fuelRecords} 条加油、${counts.washRecords} 条洗车、${counts.washProducts} 个耗材、${counts.expenseRecords} 条费用`;
-}
-
-function LoginScreen({ onLogin }: { onLogin: (name: string, email: string) => void }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!email.trim()) return;
-    onLogin(name, email);
-  }
-
-  return (
-    <main className="login-screen">
-      <section className="login-panel">
-        <div className="brand-mark">
-          <Car size={32} />
-        </div>
-        <p className="eyebrow">Car Utils</p>
-        <h1>把车辆花费和护理记录管起来</h1>
-        <form onSubmit={submit} className="stack">
-          <label>
-            昵称
-            <input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如 Dylan" />
-          </label>
-          <label>
-            邮箱
-            <input
-              required
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-            />
-          </label>
-          <button className="primary-button" type="submit">
-            登录 / 创建本地账户
-          </button>
-        </form>
-      </section>
-    </main>
-  );
 }
 
 type VehicleDraft = Omit<Vehicle, "id" | "userId">;

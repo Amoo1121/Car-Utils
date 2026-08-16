@@ -78,7 +78,7 @@ export class HttpStoreRepository implements RemoteStoreRepository {
 
   private request(input: RequestInfo | URL, init?: RequestInit) {
     const fetcher = this.fetcher;
-    return fetcher(input, init);
+    return fetcher(input, { ...init, credentials: "include" });
   }
 }
 

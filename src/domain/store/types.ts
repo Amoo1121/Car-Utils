@@ -228,7 +228,7 @@ export type Store = {
   syncState?: SyncState;
 };
 
-export type FuelDateFilter = "all" | "month" | "year";
+export type FuelDateFilter = "all" | "month" | "year" | "custom";
 
 export type StoreCounts = {
   users: number;
