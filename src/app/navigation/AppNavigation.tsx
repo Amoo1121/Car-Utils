@@ -24,14 +24,33 @@ export const appTabTitles: Record<AppTab, string> = {
   sync: "数据同步",
 };
 
-const tabs = [
-  { id: "overview", label: "概览", icon: CarFront },
-  { id: "analytics", label: "分析", icon: BarChart3 },
-  { id: "fuel", label: "加油", icon: Fuel },
-  { id: "wash", label: "洗车", icon: Sparkles },
-  { id: "vehicles", label: "车辆", icon: Wrench },
-  { id: "sync", label: "同步", icon: Cloud },
-] satisfies Array<{ id: AppTab; label: string; icon: typeof CarFront }>;
+export const appTabDescriptions: Record<AppTab, string> = {
+  overview: "掌握当前车辆状态与最近发生的车务活动",
+  analytics: "查看里程、成本、油耗与加油站表现",
+  fuel: "记录每次补能并维护可追溯的加油账单",
+  wash: "管理洗车记录、护理流程与耗材库存",
+  vehicles: "维护车辆资料、状态与历史数据归属",
+  sync: "管理本地持久化、备份与跨端同步",
+};
+
+const tabGroups = [
+  {
+    label: "车辆工作台",
+    tabs: [
+      { id: "overview", label: "车辆概览", icon: CarFront },
+      { id: "analytics", label: "数据分析", icon: BarChart3 },
+      { id: "fuel", label: "加油记录", icon: Fuel },
+      { id: "wash", label: "洗车护理", icon: Sparkles },
+    ],
+  },
+  {
+    label: "系统管理",
+    tabs: [
+      { id: "vehicles", label: "车辆管理", icon: Wrench },
+      { id: "sync", label: "数据同步", icon: Cloud },
+    ],
+  },
+] satisfies Array<{ label: string; tabs: Array<{ id: AppTab; label: string; icon: typeof CarFront }> }>;
 
 export type AppNavigationProps = {
   activeTab: AppTab;
@@ -82,7 +101,7 @@ export function AppNavigation({
           </div>
           <div className="nav-brand-copy">
             <strong>Car Utils</strong>
-            <span>车辆生活账本</span>
+            <span>VEHICLE COMMAND</span>
           </div>
           <button className="desktop-nav-toggle" type="button" aria-label={collapsed ? "展开导航" : "收起导航"} onClick={onToggleCollapsed}>
             {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
@@ -93,28 +112,36 @@ export function AppNavigation({
         </div>
 
         <nav className="nav-tabs" aria-label="功能导航">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                aria-current={activeTab === tab.id ? "page" : undefined}
-                aria-label={tab.label}
-                className={activeTab === tab.id ? "nav-tab active" : "nav-tab"}
-                key={tab.id}
-                title={collapsed ? tab.label : undefined}
-                type="button"
-                onClick={() => selectTab(tab.id)}
-              >
-                <Icon size={18} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+          {tabGroups.map((group) => (
+            <div className="nav-group" key={group.label}>
+              <span className="nav-group-label">{group.label}</span>
+              {group.tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    aria-current={activeTab === tab.id ? "page" : undefined}
+                    aria-label={tab.label}
+                    className={activeTab === tab.id ? "nav-tab active" : "nav-tab"}
+                    key={tab.id}
+                    title={collapsed ? tab.label : undefined}
+                    type="button"
+                    onClick={() => selectTab(tab.id)}
+                  >
+                    <Icon size={18} />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="nav-user">
           <div className="nav-user-chip" title={userName}>
-            <UserRound size={18} />
+            <div className="nav-user-avatar">
+              <UserRound size={17} />
+              <i aria-hidden="true" />
+            </div>
             <span>
               <small>当前用户</small>
               <strong>{userName}</strong>

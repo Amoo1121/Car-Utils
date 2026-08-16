@@ -118,7 +118,12 @@ import { calculateWashOverview, calculateWashProductInventory } from "./domain/a
 import { FuelStationField } from "./features/fuel/FuelStationField";
 import { WashProductPresetImage, WashProductPresetPicker } from "./features/wash/WashProductPresetPicker";
 import { WashProductMetadataLookup } from "./features/wash/WashProductMetadataLookup";
-import { AppNavigation, appTabTitles, type AppTab } from "./app/navigation/AppNavigation";
+import {
+  AppNavigation,
+  appTabDescriptions,
+  appTabTitles,
+  type AppTab,
+} from "./app/navigation/AppNavigation";
 
 type FuelSubTab = "record" | "history";
 type WashSubTab = "record" | "warehouse" | "history";
@@ -248,12 +253,17 @@ export function App() {
     setSelectedVehicleId("");
   }
 
+  function navigateTo(tab: AppTab) {
+    setActiveTab(tab);
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }
+
   function addVehicle(vehicle: Omit<Vehicle, "id" | "userId">) {
     const result = addVehicleToStore(store, currentUser, vehicle);
     if (!result) return;
     commit(result.store);
     setSelectedVehicleId(result.vehicle.id);
-    setActiveTab("overview");
+    navigateTo("overview");
   }
 
   function updateVehicle(vehicleId: string, vehicle: Omit<Vehicle, "id" | "userId">) {
@@ -437,7 +447,7 @@ export function App() {
         activeTab={activeTab}
         collapsed={navCollapsed}
         mobileOpen={mobileNavOpen}
-        onChange={setActiveTab}
+        onChange={navigateTo}
         onCloseMobile={() => setMobileNavOpen(false)}
         onLogout={logout}
         onOpenMobile={() => setMobileNavOpen(true)}
@@ -448,15 +458,16 @@ export function App() {
       <section className="workspace">
         <div className="content">
           <header className="page-header">
-            <div>
-              <p className="eyebrow">Workspace</p>
+            <div className="page-heading">
+              <p className="eyebrow">CAR UTILS / WORKSPACE</p>
               <h1>{appTabTitles[activeTab]}</h1>
+              <p className="page-description">{appTabDescriptions[activeTab]}</p>
             </div>
             <div className="page-header-actions">
               <ActiveVehicleSwitcher
                 activeTab={activeTab}
                 activeVehicleId={activeVehicleId}
-                onManageVehicles={() => setActiveTab("vehicles")}
+                onManageVehicles={() => navigateTo("vehicles")}
                 onSelect={setSelectedVehicleId}
                 vehicles={vehicleSwitcherVehicles}
               />
@@ -468,8 +479,13 @@ export function App() {
             <>
               {activeTab === "overview" && activeVehicle && (
                 <>
-                  <Dashboard vehicle={activeVehicle} fuelRecords={fuelRecords} washRecords={washRecords} />
-                  <Records fuelRecords={fuelRecords} washRecords={washRecords} />
+                  <Dashboard
+                    vehicle={activeVehicle}
+                    fuelRecords={fuelRecords}
+                    washRecords={washRecords}
+                    onNavigate={navigateTo}
+                  />
+                  <Records fuelRecords={fuelRecords} washRecords={washRecords} onNavigate={navigateTo} />
                 </>
               )}
               {activeTab === "analytics" && activeVehicle && (
@@ -529,10 +545,10 @@ export function App() {
               <h2>先绑定你的第一台车</h2>
               <p>添加品牌、型号、能源类型和车牌后，加油和洗车数据都会按车辆独立统计。</p>
               <div className="blank-actions">
-                <button className="primary-button" type="button" onClick={() => setActiveTab("vehicles")}>
+                <button className="primary-button" type="button" onClick={() => navigateTo("vehicles")}>
                   添加车辆
                 </button>
-                <button className="ghost-button" type="button" onClick={() => setActiveTab("sync")}>
+                <button className="ghost-button" type="button" onClick={() => navigateTo("sync")}>
                   导入已有数据
                 </button>
               </div>
@@ -1665,10 +1681,12 @@ function Dashboard({
   vehicle,
   fuelRecords,
   washRecords,
+  onNavigate,
 }: {
   vehicle: Vehicle;
   fuelRecords: FuelRecord[];
   washRecords: WashRecord[];
+  onNavigate: (tab: AppTab) => void;
 }) {
   const stats = useMemo(() => {
     return {
@@ -1676,27 +1694,47 @@ function Dashboard({
       washCost: calculateWashOverview(washRecords).washCost,
     };
   }, [fuelRecords, washRecords]);
+  const knownOdometers = [stats.latestOdometer, vehicle.currentOdometer].filter(
+    (value): value is number => typeof value === "number" && Number.isFinite(value),
+  );
+  const latestOdometer = knownOdometers.length > 0 ? Math.max(...knownOdometers) : undefined;
 
   return (
-    <section className="hero-band">
-      <div>
-        <p className="eyebrow">当前车辆</p>
-        <h2>
-          {vehicle.nickname}
-          <span>
+    <section className="vehicle-command">
+      <div className="vehicle-command-main">
+        <div className="vehicle-command-copy">
+          <p className="eyebrow">ACTIVE VEHICLE</p>
+          <h2>{vehicle.nickname}</h2>
+          <strong>
             {vehicle.brand} {vehicle.model}
-          </span>
-        </h2>
-        <p className="muted">
-          {vehicle.year} · {vehicle.energyType}
-          {vehicle.plate ? ` · ${vehicle.plate}` : ""}
-        </p>
+          </strong>
+          <div className="vehicle-command-tags">
+            {vehicle.plate && <span>{vehicle.plate}</span>}
+            {vehicle.year && <span>{vehicle.year} 年款</span>}
+            <span>{vehicle.energyType}</span>
+            {vehicle.isArchived && <span>已归档</span>}
+          </div>
+        </div>
+        <div className="vehicle-command-actions" aria-label="快捷操作">
+          <button className="command-action primary" type="button" onClick={() => onNavigate("fuel")}>
+            <Fuel size={19} />
+            <span>记录加油</span>
+          </button>
+          <button className="command-action" type="button" onClick={() => onNavigate("wash")}>
+            <Sparkles size={19} />
+            <span>记录洗车</span>
+          </button>
+          <button className="command-action" type="button" onClick={() => onNavigate("analytics")}>
+            <BarChart3 size={19} />
+            <span>查看分析</span>
+          </button>
+        </div>
       </div>
-      <div className="stats-grid">
-        <StatCard icon={<Fuel size={20} />} label="加油总花费" value={money(stats.fuelCost)} />
-        <StatCard icon={<Droplets size={20} />} label="累计加油" value={`${number(stats.fuelVolume)} L`} />
-        <StatCard icon={<Sparkles size={20} />} label="洗车总花费" value={money(stats.washCost)} />
-        <StatCard icon={<Car size={20} />} label="估算油耗" value={`${number(stats.avgConsumption)} L/100km`} />
+      <div className="command-metrics">
+        <StatCard icon={<Car size={19} />} label="最新表显里程" value={latestOdometer != null ? kilometers(latestOdometer) : "-"} />
+        <StatCard icon={<Droplets size={19} />} label="估算油耗" value={stats.distance > 0 ? `${number(stats.avgConsumption)} L/100km` : "-"} />
+        <StatCard icon={<Fuel size={19} />} label="累计加油支出" value={money(stats.fuelCost)} />
+        <StatCard icon={<Sparkles size={19} />} label="累计洗车支出" value={money(stats.washCost)} />
       </div>
     </section>
   );
@@ -3150,11 +3188,106 @@ function WashProductWarehouse({
   );
 }
 
-function Records({ fuelRecords, washRecords }: { fuelRecords: FuelRecord[]; washRecords: WashRecord[] }) {
+function Records({
+  fuelRecords,
+  washRecords,
+  onNavigate,
+}: {
+  fuelRecords: FuelRecord[];
+  washRecords: WashRecord[];
+  onNavigate: (tab: AppTab) => void;
+}) {
+  const activities = [
+    ...fuelRecords.map((record) => ({
+      id: `fuel-${record.id}`,
+      kind: "fuel" as const,
+      date: record.date,
+      title: record.station || "加油记录",
+      detail: `${record.fuelGrade || "油品未填"} · ${number(record.volume, 2)} L`,
+      amount: money(recordCost(record)),
+      odometer: record.odometer,
+    })),
+    ...washRecords.map((record) => ({
+      id: `wash-${record.id}`,
+      kind: "wash" as const,
+      date: record.date,
+      title: record.shopName || washTypeLabel(record.washType),
+      detail: record.items.length > 0 ? record.items.join(" / ") : washTypeLabel(record.washType),
+      amount: money(record.cost),
+      odometer: record.odometer,
+    })),
+  ]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 8);
+  const completeFuelOdometers = fuelRecords.filter((record) => record.odometer != null).length;
+  const fuelCompleteness = fuelRecords.length > 0 ? Math.round((completeFuelOdometers / fuelRecords.length) * 100) : 0;
+
   return (
-    <section className="records-grid">
-      <FuelRecordsPanel fuelRecords={fuelRecords} limit={6} />
-      <WashRecordsPanel washRecords={washRecords} limit={6} />
+    <section className="overview-grid">
+      <div className="panel activity-panel">
+        <div className="panel-heading-row">
+          <div>
+            <div className="section-title compact">
+              <RefreshCw size={17} />
+              <span>最近活动</span>
+            </div>
+            <p className="filter-count">加油与洗车记录按时间统一展示</p>
+          </div>
+          <div className="activity-heading-actions">
+            <button className="text-button" type="button" onClick={() => onNavigate("fuel")}>加油历史</button>
+            <button className="text-button" type="button" onClick={() => onNavigate("wash")}>洗车历史</button>
+          </div>
+        </div>
+        {activities.length === 0 ? (
+          <p className="empty">还没有车务活动，先记录一次加油或洗车。</p>
+        ) : (
+          <div className="activity-table" role="table" aria-label="最近活动">
+            <div className="activity-table-head" role="row">
+              <span>日期</span>
+              <span>类型</span>
+              <span>地点 / 方式</span>
+              <span>详情</span>
+              <span>金额</span>
+              <span>里程</span>
+            </div>
+            {activities.map((activity) => (
+              <div className="activity-row" role="row" key={activity.id}>
+                <time dateTime={activity.date}>{activity.date}</time>
+                <span className={`activity-type ${activity.kind}`}>
+                  {activity.kind === "fuel" ? <Fuel size={15} /> : <Sparkles size={15} />}
+                  {activity.kind === "fuel" ? "加油" : "洗车"}
+                </span>
+                <strong>{activity.title}</strong>
+                <span>{activity.detail}</span>
+                <b>{activity.amount}</b>
+                <span>{activity.odometer != null ? kilometers(activity.odometer) : "-"}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <aside className="overview-side-stack">
+        <section className="panel data-health-panel">
+          <div className="section-title compact">
+            <Info size={17} />
+            <span>数据概况</span>
+          </div>
+          <p className="filter-count">完整记录能让里程与油耗分析更可靠</p>
+          <div className="data-health-score">
+            <strong>{fuelCompleteness}%</strong>
+            <span>加油里程完整度</span>
+          </div>
+          <div className="data-health-list">
+            <div><span>加油记录</span><strong>{fuelRecords.length} 条</strong></div>
+            <div><span>带里程记录</span><strong>{completeFuelOdometers} 条</strong></div>
+            <div><span>洗车记录</span><strong>{washRecords.length} 条</strong></div>
+          </div>
+          <button className="secondary-button full-width" type="button" onClick={() => onNavigate("analytics")}>
+            查看完整分析
+          </button>
+        </section>
+      </aside>
     </section>
   );
 }

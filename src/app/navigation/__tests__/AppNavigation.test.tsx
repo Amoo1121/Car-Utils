@@ -13,10 +13,10 @@ describe("AppNavigation", () => {
     const props = createProps();
     render(<AppNavigation {...props} />);
 
-    expect(screen.getByRole("button", { name: "概览" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("button", { name: "车辆概览" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("Dylan")).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: "加油" }));
+    await user.click(screen.getByRole("button", { name: "加油记录" }));
 
     expect(props.onChange).toHaveBeenCalledWith("fuel");
     expect(props.onCloseMobile).toHaveBeenCalledOnce();
@@ -27,7 +27,7 @@ describe("AppNavigation", () => {
     const props = createProps();
     render(<AppNavigation {...props} />);
 
-    await user.click(screen.getByRole("button", { name: "分析" }));
+    await user.click(screen.getByRole("button", { name: "数据分析" }));
 
     expect(props.onChange).toHaveBeenCalledWith("analytics");
     expect(props.onCloseMobile).toHaveBeenCalledOnce();
