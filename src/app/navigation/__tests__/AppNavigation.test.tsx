@@ -22,6 +22,17 @@ describe("AppNavigation", () => {
     expect(props.onCloseMobile).toHaveBeenCalledOnce();
   });
 
+  it("exposes analytics as a top-level workspace", async () => {
+    const user = userEvent.setup();
+    const props = createProps();
+    render(<AppNavigation {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "分析" }));
+
+    expect(props.onChange).toHaveBeenCalledWith("analytics");
+    expect(props.onCloseMobile).toHaveBeenCalledOnce();
+  });
+
   it("exposes mobile open and close controls without changing desktop behavior", async () => {
     const user = userEvent.setup();
     const props = createProps({ mobileOpen: true });

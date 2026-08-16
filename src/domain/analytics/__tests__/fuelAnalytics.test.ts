@@ -21,6 +21,9 @@ describe("fuelAnalytics", () => {
       fuelVolume: 0,
       distance: 0,
       avgConsumption: 0,
+      firstOdometer: undefined,
+      latestOdometer: undefined,
+      odometerRecordCount: 0,
     });
     expect(calculateFuelInsights(vehicle, [])).toMatchObject({
       pricePoints: [],
@@ -69,6 +72,21 @@ describe("fuelAnalytics", () => {
       recordCount: 2,
       totalVolume: 50,
       avgUnitPrice: 7.75,
+    });
+  });
+
+  it("summarizes the recorded odometer range for the analytics page", () => {
+    const overview = calculateFuelOverview([
+      createFuelRecord({ id: "fuel_1", odometer: 1250 }),
+      createFuelRecord({ id: "fuel_2", odometer: 1000 }),
+      createFuelRecord({ id: "fuel_3", odometer: undefined }),
+    ]);
+
+    expect(overview).toMatchObject({
+      firstOdometer: 1000,
+      latestOdometer: 1250,
+      distance: 250,
+      odometerRecordCount: 2,
     });
   });
 

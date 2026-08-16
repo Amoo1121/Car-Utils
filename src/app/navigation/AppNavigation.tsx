@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   CarFront,
   Cloud,
   Fuel,
@@ -12,10 +13,11 @@ import {
   X,
 } from "lucide-react";
 
-export type AppTab = "overview" | "fuel" | "wash" | "vehicles" | "sync";
+export type AppTab = "overview" | "analytics" | "fuel" | "wash" | "vehicles" | "sync";
 
 export const appTabTitles: Record<AppTab, string> = {
   overview: "车辆概览",
+  analytics: "数据分析",
   fuel: "加油记录",
   wash: "洗车护理",
   vehicles: "车辆管理",
@@ -24,6 +26,7 @@ export const appTabTitles: Record<AppTab, string> = {
 
 const tabs = [
   { id: "overview", label: "概览", icon: CarFront },
+  { id: "analytics", label: "分析", icon: BarChart3 },
   { id: "fuel", label: "加油", icon: Fuel },
   { id: "wash", label: "洗车", icon: Sparkles },
   { id: "vehicles", label: "车辆", icon: Wrench },

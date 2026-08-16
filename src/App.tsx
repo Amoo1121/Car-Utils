@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   Car,
   Cloud,
   Database,
@@ -119,7 +120,7 @@ import { WashProductPresetImage, WashProductPresetPicker } from "./features/wash
 import { WashProductMetadataLookup } from "./features/wash/WashProductMetadataLookup";
 import { AppNavigation, appTabTitles, type AppTab } from "./app/navigation/AppNavigation";
 
-type FuelSubTab = "analytics" | "record" | "history";
+type FuelSubTab = "record" | "history";
 type WashSubTab = "record" | "warehouse" | "history";
 
 function saveStore(store: Store) {
@@ -144,6 +145,10 @@ function money(value: number) {
 
 function number(value: number, digits = 1) {
   return Number.isFinite(value) ? value.toFixed(digits) : "-";
+}
+
+function kilometers(value: number) {
+  return `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 }).format(value)} km`;
 }
 
 function PersistenceStatusBanner({ snapshot }: { snapshot: PersistenceStatusSnapshot }) {
@@ -467,6 +472,9 @@ export function App() {
                   <Records fuelRecords={fuelRecords} washRecords={washRecords} />
                 </>
               )}
+              {activeTab === "analytics" && activeVehicle && (
+                <AnalyticsTab vehicle={activeVehicle} fuelRecords={fuelRecords} />
+              )}
               {activeTab === "fuel" && activeVehicle && (
                 <FuelTab
                   vehicle={activeVehicle}
@@ -618,26 +626,12 @@ function FuelTab({
         activeTab={activeFuelTab}
         tabs={[
           { id: "record", label: "记录加油" },
-          { id: "analytics", label: "数据分析" },
           { id: "history", label: "历史记录" },
         ]}
         onChange={(tab) => setActiveFuelTab(tab as FuelSubTab)}
       />
       {activeFuelTab === "record" && (
         <FuelRecordWorkspace fuelRecords={fuelRecords} stationRecords={stationRecords} vehicle={vehicle} onAdd={onAdd} />
-      )}
-      {activeFuelTab === "analytics" && (
-        <>
-          <FuelFilters
-            dateFilter={dateFilter}
-            onDateFilterChange={setDateFilter}
-            query={query}
-            onQueryChange={setQuery}
-            visibleCount={filteredFuelRecords.length}
-            totalCount={fuelRecords.length}
-          />
-          <FuelInsights vehicle={vehicle} fuelRecords={filteredFuelRecords} />
-        </>
       )}
       {activeFuelTab === "history" && (
         <>
@@ -662,6 +656,93 @@ function FuelTab({
         </>
       )}
     </section>
+  );
+}
+
+function AnalyticsTab({ vehicle, fuelRecords }: { vehicle: Vehicle; fuelRecords: FuelRecord[] }) {
+  const [dateFilter, setDateFilter] = useState<FuelDateFilter>("all");
+  const [query, setQuery] = useState("");
+  const filteredFuelRecords = useMemo(
+    () =>
+      fuelRecords.filter(
+        (record) => matchesFuelDateFilter(record, dateFilter) && matchesFuelQuery(record, query),
+      ),
+    [dateFilter, fuelRecords, query],
+  );
+  const overview = useMemo(() => calculateFuelOverview(filteredFuelRecords), [filteredFuelRecords]);
+  const knownOdometers = [overview.latestOdometer, vehicle.currentOdometer].filter(
+    (value): value is number => typeof value === "number" && Number.isFinite(value),
+  );
+  const latestKnownOdometer = knownOdometers.length > 0 ? Math.max(...knownOdometers) : undefined;
+  const odometerRange =
+    overview.firstOdometer != null && overview.latestOdometer != null
+      ? `${kilometers(overview.firstOdometer)} 至 ${kilometers(overview.latestOdometer)}`
+      : "至少需要 2 条带总里程的记录";
+
+  return (
+    <section className="tab-stack analytics-workspace">
+      <FuelFilters
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
+        query={query}
+        onQueryChange={setQuery}
+        visibleCount={filteredFuelRecords.length}
+        totalCount={fuelRecords.length}
+      />
+
+      <section className="panel analytics-summary-panel">
+        <div className="panel-heading-row analytics-summary-heading">
+          <div>
+            <div className="section-title compact">
+              <BarChart3 size={17} />
+              <span>行驶与加油概览</span>
+            </div>
+            <p className="filter-count">汇总按当前筛选计算；最新表显同时参考车辆资料</p>
+          </div>
+          <span className="analytics-range-note">{odometerRange}</span>
+        </div>
+        <div className="analytics-summary-grid">
+          <AnalyticsMetric
+            label="最新表显里程"
+            value={latestKnownOdometer != null ? kilometers(latestKnownOdometer) : "-"}
+            detail="取车辆资料与加油记录中的最大值"
+          />
+          <AnalyticsMetric
+            label="记录区间里程"
+            value={overview.odometerRecordCount >= 2 ? kilometers(overview.distance) : "-"}
+            detail="按最早与最新的带里程记录计算"
+          />
+          <AnalyticsMetric
+            label="估算油耗"
+            value={overview.distance > 0 ? `${number(overview.avgConsumption, 1)} L/100km` : "-"}
+            detail="沿用现有里程区间估算口径"
+          />
+          <AnalyticsMetric
+            label="里程样本"
+            value={`${overview.odometerRecordCount} 条`}
+            detail="缺少总里程的记录不会参与区间计算"
+          />
+          <AnalyticsMetric label="加油总花费" value={money(overview.fuelCost)} detail="按实付金额汇总" />
+          <AnalyticsMetric
+            label="累计加油量"
+            value={`${number(overview.fuelVolume, 1)} L`}
+            detail="按当前筛选记录汇总"
+          />
+        </div>
+      </section>
+
+      <FuelInsights vehicle={vehicle} fuelRecords={filteredFuelRecords} />
+    </section>
+  );
+}
+
+function AnalyticsMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="analytics-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </div>
   );
 }
 

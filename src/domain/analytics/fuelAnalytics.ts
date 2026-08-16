@@ -11,6 +11,9 @@ export type FuelOverviewStats = {
   fuelVolume: number;
   distance: number;
   avgConsumption: number;
+  firstOdometer?: number;
+  latestOdometer?: number;
+  odometerRecordCount: number;
 };
 
 export type StationSummary = {
@@ -46,13 +49,23 @@ export function calculateFuelOverview(fuelRecords: FuelRecord[]): FuelOverviewSt
   const recordsWithOdometer = activeRecords.filter((record) => typeof record.odometer === "number");
   const consumptionVolume = recordsWithOdometer.reduce((sum, record) => sum + record.volume, 0);
   const sortedFuel = [...recordsWithOdometer].sort((a, b) => a.odometer! - b.odometer!);
+  const firstOdometer = sortedFuel[0]?.odometer;
+  const latestOdometer = sortedFuel.at(-1)?.odometer;
   const distance =
     sortedFuel.length >= 2 ? sortedFuel[sortedFuel.length - 1].odometer! - sortedFuel[0].odometer! : 0;
 
   // TODO: replace this legacy estimate with confidence-aware interval calculations in a later phase.
   const avgConsumption = distance > 0 ? (consumptionVolume / distance) * 100 : 0;
 
-  return { fuelCost, fuelVolume, distance, avgConsumption };
+  return {
+    fuelCost,
+    fuelVolume,
+    distance,
+    avgConsumption,
+    firstOdometer,
+    latestOdometer,
+    odometerRecordCount: sortedFuel.length,
+  };
 }
 
 export function calculateFuelInsights(vehicle: Vehicle, fuelRecords: FuelRecord[]): FuelInsights {
