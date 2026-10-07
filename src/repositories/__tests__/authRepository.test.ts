@@ -34,6 +34,7 @@ describe("AuthRepository", () => {
     const repository = new AuthRepository("", fetcher as typeof fetch);
 
     await expect(repository.getSession()).resolves.toBeNull();
+    expect(fetcher).toHaveBeenCalledWith("/api/auth/session", expect.objectContaining({ cache: "no-store" }));
   });
 
   it("surfaces backend authentication messages", async () => {

@@ -293,6 +293,33 @@ describe("HybridStoreRepository", () => {
     expect(repository.getPersistenceStatus()?.status).toBe("backend_persisted");
   });
 
+  it.each([true, false])("recovers a load-time conflict while importing backup (existing Store: %s)", async (exists) => {
+    const oldStore = normalizeStore({ users: [{ id: "original", email: "original@example.com" }] });
+    const newerStore = normalizeStore({
+      users: [...oldStore.users, { id: "remote", email: "remote@example.com", deletedAt: 50, updatedAt: 50 }],
+    });
+    const legacyStore = normalizeStore({ users: [...oldStore.users, { id: "local", email: "local@example.com" }] });
+    const remoteRepository = new MemoryRemoteRepository(exists ? oldStore : null, false, { version: 1, updatedAt: 100 });
+    const originalPut = remoteRepository.putStore.bind(remoteRepository);
+    vi.spyOn(remoteRepository, "putStore").mockImplementationOnce((store, options) => {
+      // Another tab writes after GET and before the backup import PUT.
+      remoteRepository.setRemoteSnapshot(newerStore, { version: 2, updatedAt: 300 });
+      return originalPut(store, options);
+    });
+    const legacyRepository = new MemoryLegacyRepository(legacyStore, 200);
+    const repository = new HybridStoreRepository(remoteRepository, legacyRepository);
+
+    const result = await repository.load();
+
+    expect(result.remoteAvailable).toBe(true);
+    expect(result.persistenceStatus.status).toBe("backend_persisted");
+    expect(result.store.users.map((user) => user.id).sort()).toEqual(["local", "original", "remote"]);
+    expect(result.store.users.find((user) => user.id === "remote")?.deletedAt).toBe(50);
+    expect(legacyRepository.savedStore).toEqual(result.store);
+    expect(remoteRepository.savedStore).toEqual(result.store);
+    expect(remoteRepository.putStore).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps a legacy backup and reports save_failed_local_backup_only when backend save fails", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const store = normalizeStore({

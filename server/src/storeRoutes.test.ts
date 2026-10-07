@@ -29,6 +29,26 @@ test("GET /api/health returns ok", async (t) => {
   assert.deepEqual(response.json(), { ok: true });
 });
 
+test("Store and session responses are never HTTP-cacheable, including signed-out responses", async (t) => {
+  const { directory, databasePath } = createTempDatabasePath();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const app = createServer({ databasePath, logger: false });
+  t.after(async () => app.close());
+  const { cookie } = await registerTestUser(app, "cache-test@example.com", "Cache Test");
+  const saved = await app.inject({ method: "PUT", url: "/api/store", headers: { cookie }, payload: { schemaVersion: 1 } });
+  assert.equal(saved.statusCode, 200);
+  assert.equal(saved.headers["cache-control"], "no-store");
+
+  for (const url of ["/api/store", "/api/auth/session"]) {
+    const authenticated = await app.inject({ method: "GET", url, headers: { cookie } });
+    assert.equal(authenticated.statusCode, 200);
+    assert.equal(authenticated.headers["cache-control"], "no-store");
+    const signedOut = await app.inject({ method: "GET", url });
+    assert.equal(signedOut.statusCode, 401);
+    assert.equal(signedOut.headers["cache-control"], "no-store");
+  }
+});
+
 test("GET /api/product-lookup returns reviewable metadata candidates", async (t) => {
   const { directory, databasePath } = createTempDatabasePath();
   t.after(() => rmSync(directory, { recursive: true, force: true }));

@@ -108,6 +108,7 @@ export class AuthRepository {
     return fetcher(this.resolveUrl(path), {
       ...init,
       credentials: "include",
+      cache: "no-store",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",

@@ -23,6 +23,7 @@ export function createServer(options: CreateServerOptions = {}) {
   });
 
   app.addHook("onRequest", async (request, reply) => {
+    reply.header("Cache-Control", "no-store");
     const configuredOrigin = process.env.CORS_ORIGIN;
     if (configuredOrigin && request.headers.origin === configuredOrigin) {
       reply.header("Access-Control-Allow-Origin", configuredOrigin);

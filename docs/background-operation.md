@@ -73,7 +73,7 @@ npm run app:logs
 | 后台日常版 | `http://localhost:4173/` | 否 |
 | Vite 开发版 | `http://localhost:5173/` 或 `.env` 中的开发端口 | 是 |
 
-两个地址是不同的浏览器来源，因此登录 Cookie 和浏览器备份相互独立，但它们连接同一个 SQLite 后端。第一次打开后台版时需要重新登录，车辆账本仍来自同一份 SQLite 数据。
+两个地址是不同的浏览器来源，因此 localStorage 备份相互独立，但它们连接同一个 SQLite 后端。同一主机名的 Cookie 不按端口隔离，登录会话可能共用；若页面要求登录，使用原账户即可，车辆账本仍来自同一份 SQLite 数据。
 
 ## 自定义后台端口
 
@@ -83,13 +83,27 @@ npm run app:logs
 CAR_UTILS_APP_PORT=4174
 ```
 
-重新双击启动脚本后，使用 `http://localhost:4174/`。请尽量固定端口，避免登录 Cookie 和 `localStorage` 备份分散到不同浏览器来源。
+重新双击启动脚本后，使用 `http://localhost:4174/`。请尽量固定端口，避免 `localStorage` 备份分散到不同浏览器来源。
 
 ## 更新代码后
 
 拉取或修改代码后，再次双击启动脚本即可。脚本执行带构建的 `docker compose up`，会在需要时重建前后端镜像，并保留现有 SQLite volume。
 
 ## 常见问题
+
+### 容器健康，但页面提示后端不可用
+
+先验证页面实际使用的代理地址（自定义端口时替换 4173）：
+
+```bash
+curl -i http://localhost:4173/api/health
+```
+
+正常返回 `200` 和 `{"ok":true}`。Web 容器的健康检查也会验证这条代理链路。
+
+旧版本的 PWA Service Worker 曾错误缓存 `/api/store` 和登录会话，导致读取旧版本、保存返回 `409`，最终被误报为后端不可用。更新后只对页面资源使用离线缓存，API 响应标记 `Cache-Control: no-store`；新 Service Worker 会自动清理旧 PWA 缓存，保留 localStorage 和 SQLite。
+
+重新运行启动脚本后刷新页面，待更新完成后再点页面右上角“刷新后端数据”。如果第一次仍有旧提示，再刷新一次即可让新 Service Worker 接管。无需清除网站数据或删除浏览器备份。
 
 ### 端口被占用
 

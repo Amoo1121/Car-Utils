@@ -1,4 +1,5 @@
-const CACHE_NAME = "car-utils-pwa-v1";
+const CACHE_PREFIX = "car-utils-pwa-";
+const CACHE_NAME = `${CACHE_PREFIX}v2`;
 const shellUrl = (path) => new URL(path, self.registration.scope).toString();
 const APP_SHELL = ["./", "./index.html", "./favicon.svg", "./manifest.webmanifest"].map(shellUrl);
 
@@ -12,7 +13,11 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((cacheNames) =>
-        Promise.all(cacheNames.filter((cacheName) => cacheName !== CACHE_NAME).map((cacheName) => caches.delete(cacheName))),
+        Promise.all(
+          cacheNames
+            .filter((cacheName) => cacheName.startsWith(CACHE_PREFIX) && cacheName !== CACHE_NAME)
+            .map((cacheName) => caches.delete(cacheName)),
+        ),
       )
       .then(() => self.clients.claim()),
   );
@@ -24,6 +29,9 @@ self.addEventListener("fetch", (event) => {
   const sameOrigin = requestUrl.origin === self.location.origin;
 
   if (request.method !== "GET" || !sameOrigin) return;
+
+  // Store versions and sessions must always come from the server, including offline failures.
+  if (requestUrl.pathname === "/api" || requestUrl.pathname.startsWith("/api/")) return;
 
   if (request.mode === "navigate") {
     event.respondWith(fetch(request).catch(() => caches.match(shellUrl("./index.html"))));

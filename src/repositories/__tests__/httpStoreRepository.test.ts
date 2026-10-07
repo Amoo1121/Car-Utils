@@ -1,7 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { HttpStoreRepository } from "../httpStoreRepository";
 
 describe("HttpStoreRepository", () => {
+  it("bypasses browser HTTP caching when reading Store versions", async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({}), {
+      headers: { "x-car-utils-store-version": "7" },
+    }));
+    const repository = new HttpStoreRepository("", fetcher as typeof fetch);
+
+    expect((await repository.getStore())?.version).toBe(7);
+    expect(fetcher).toHaveBeenCalledWith("/api/store", expect.objectContaining({
+      cache: "no-store",
+      credentials: "include",
+    }));
+  });
+
   it("calls the browser fetch function without using the repository as its receiver", async () => {
     let fetchReceiver: unknown = "not-called";
     const fetcher = function (this: unknown) {

@@ -33,9 +33,7 @@ export class HybridStoreRepository implements StoreRepository {
         this.rememberRemoteSnapshot(remoteSnapshot);
         if (legacySnapshot && shouldPreferLegacySnapshot(legacySnapshot, remoteSnapshot)) {
           this.setPersistenceStatus("backend_empty_importing_legacy");
-          const savedSnapshot = await this.remoteRepository.putStore(legacySnapshot.store, {
-            expectedVersion: remoteSnapshot.version,
-          });
+          const savedSnapshot = await this.putWithKnownVersion(legacySnapshot.store);
           this.rememberRemoteSnapshot(savedSnapshot);
           this.legacyRepository.saveLegacyStore(savedSnapshot.store, {
             savedAt: savedSnapshot.updatedAt,
@@ -68,9 +66,7 @@ export class HybridStoreRepository implements StoreRepository {
       if (legacySnapshot) {
         const normalizedStore = normalizeStore(legacySnapshot.store);
         this.setPersistenceStatus("backend_empty_importing_legacy");
-        const savedSnapshot = await this.remoteRepository.putStore(normalizedStore, {
-          expectedVersion: null,
-        });
+        const savedSnapshot = await this.putWithKnownVersion(normalizedStore);
         this.rememberRemoteSnapshot(savedSnapshot);
         this.legacyRepository.saveLegacyStore(savedSnapshot.store, {
           savedAt: savedSnapshot.updatedAt,
