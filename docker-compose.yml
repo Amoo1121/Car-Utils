@@ -27,5 +27,33 @@ services:
       retries: 5
       start_period: 5s
 
+  car-utils-web:
+    profiles:
+      - desktop
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    container_name: car-utils-web
+    restart: unless-stopped
+    environment:
+      CAR_UTILS_API_INTERNAL_PORT: "${CAR_UTILS_API_INTERNAL_PORT:-3001}"
+    depends_on:
+      car-utils-server:
+        condition: service_healthy
+    ports:
+      - "${CAR_UTILS_APP_PORT:-4173}:80"
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --quiet
+        - --tries=1
+        - --spider
+        - http://127.0.0.1/
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
 volumes:
   car-utils-sqlite:

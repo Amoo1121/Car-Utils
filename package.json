@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "app:up": "docker compose --profile desktop up -d --build --wait",
+    "app:stop": "docker compose --profile desktop stop",
+    "app:status": "docker compose --profile desktop ps",
+    "app:logs": "docker compose --profile desktop logs -f --tail=100",
     "backend:up": "docker compose up -d --build --wait",
     "backend:stop": "docker compose stop",
     "dev": "npm run backend:up && vite",

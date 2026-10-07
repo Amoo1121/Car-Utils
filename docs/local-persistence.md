@@ -14,6 +14,26 @@
 
 ## 启动方式
 
+日常使用推荐双击项目根目录的：
+
+```text
+start-car-utils.command
+```
+
+它会启动 `car-utils-web` 和 `car-utils-server` 两个后台容器，并打开 `http://localhost:4173/`。关闭脚本产生的 Terminal 窗口不会停止服务。需要停止时双击 `stop-car-utils.command`。
+
+对应命令为：
+
+```bash
+npm run app:up
+npm run app:status
+npm run app:stop
+```
+
+后台 Web 容器提供生产构建，并通过同源 `/api` 代理访问后端。详细说明见 [background-operation.md](background-operation.md)。
+
+### 开发模式
+
 日常开发直接启动：
 
 ```bash
@@ -46,11 +66,12 @@ cp .env.example .env
 
 ```env
 CAR_UTILS_WEB_PORT=5180
+CAR_UTILS_APP_PORT=4174
 CAR_UTILS_API_PORT=3101
 CAR_UTILS_API_INTERNAL_PORT=3001
 ```
 
-修改后重新执行 `npm run dev`。Vite `/api` 代理和 Docker 端口映射会读取同一份配置。容器内部端口通常保持 3001 即可。
+修改后重新执行相应启动命令。Vite `/api` 代理、后台 Web 端口和 Docker API 端口映射都会读取配置。容器内部端口通常保持 3001 即可。
 
 只启动或修复后端容器：
 

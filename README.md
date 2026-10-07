@@ -8,7 +8,7 @@
 
 ## 数据与同步
 
-本机开发版使用 Docker 中的 SQLite 作为主要持久化存储：
+本机版使用 Docker 中的 SQLite 作为主要持久化存储：
 
 - React 前端通过受认证保护的 `/api/store` 读写本地后端。
 - 密码使用 scrypt 加盐哈希保存；浏览器会话使用 HttpOnly Cookie，SQLite 中只保存会话令牌的哈希。
@@ -35,7 +35,49 @@ Docker + SQLite 的完整说明见 [docs/local-persistence.md](docs/local-persis
 
 已确认的响应式前端视觉稿和实现规范见 [docs/design/design-system.md](docs/design/design-system.md)。
 
-## 运行
+## 日常启动（推荐）
+
+Finder 打开项目目录，双击：
+
+```text
+start-car-utils.command
+```
+
+脚本会自动完成以下工作：
+
+1. 检查 Docker Desktop；未启动时自动打开并等待就绪。
+2. 构建并启动后台 Web 容器与 SQLite 后端容器。
+3. 等待两个容器通过健康检查。
+4. 打开 `http://localhost:4173/`。
+
+看到页面后可以直接关闭 Terminal 和 PyCharm，Car Utils 会继续在 Docker Desktop 中后台运行。第一次构建需要下载镜像和安装依赖，时间会稍长；之后再次双击通常很快。
+
+也可以在任意终端执行同样的后台启动命令：
+
+```bash
+npm run app:up
+```
+
+查看状态或日志：
+
+```bash
+npm run app:status
+npm run app:logs
+```
+
+需要停止时，双击 `stop-car-utils.command`，或者执行：
+
+```bash
+npm run app:stop
+```
+
+停止不会删除 SQLite 数据或 Docker volume。不要执行 `docker compose down -v`。
+
+如果希望 Mac 重启后也自动恢复，请在 Docker Desktop 设置中启用“登录时启动 Docker Desktop”。两个 Car Utils 容器均设置了 `restart: unless-stopped`，Docker 启动后会自动恢复；如果你曾主动执行停止脚本，则需要再次双击启动脚本。
+
+完整说明见 [docs/background-operation.md](docs/background-operation.md)。
+
+## 开发模式
 
 前置条件：Docker Desktop 必须已经启动。
 
@@ -45,6 +87,8 @@ npm run dev
 ```
 
 `npm run dev` 会自动执行 `docker compose up -d --build --wait`，等待本地后端通过健康检查，然后运行 Vite。不需要再单独执行 Docker 命令。
+
+开发模式中的 Vite 必须依赖当前终端，适合改代码，不适合日常常驻使用。日常使用请打开 `http://localhost:4173/`，不要运行 `npm run dev`。
 
 首次打开时选择“注册”。如果你在无密码版本中已经记录过数据，请使用当时完全相同的邮箱注册；系统会忽略邮箱大小写和首尾空格，并自动认领该邮箱名下的车辆、加油、洗车、耗材和费用记录。旧数据仍会保留在原备份中，不会因认领而被硬删除。
 
@@ -68,11 +112,12 @@ cp .env.example .env
 
 ```env
 CAR_UTILS_WEB_PORT=5180
+CAR_UTILS_APP_PORT=4174
 CAR_UTILS_API_PORT=3101
 CAR_UTILS_API_INTERNAL_PORT=3001
 ```
 
-重新执行 `npm run dev` 后，前端会使用 `http://localhost:5180/`，Docker 后端会暴露在 `http://localhost:3101/`，Vite 的 `/api` 代理也会自动指向新端口。修改端口后请固定使用新地址，避免把浏览器备份分散到多个来源。
+重新执行 `npm run dev` 后，开发前端会使用 `http://localhost:5180/`，Docker 后端会暴露在 `http://localhost:3101/`，Vite 的 `/api` 代理也会自动指向新端口。再次运行后台启动脚本后，常驻版会使用 `http://localhost:4174/`。修改端口后请固定使用新地址，避免把浏览器备份分散到多个来源。
 
 后端地址：
 
