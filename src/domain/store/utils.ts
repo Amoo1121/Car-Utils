@@ -50,8 +50,28 @@ export function restoreEntity<T extends BaseEntity>(entity: T, timestamp = Date.
   return withUpdatedTimestamp({ ...entity, deletedAt: null }, timestamp);
 }
 
-export function today() {
-  return new Date().toISOString().slice(0, 10);
+/** Local calendar date (YYYY-MM-DD). UTC would show yesterday before 08:00 in China. */
+export function today(now = new Date()) {
+  return toLocalDateString(now);
+}
+
+export function toLocalDateString(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** Whole days from `from` to `to` (both YYYY-MM-DD). Positive when `to` is later. */
+export function daysBetween(from: string, to: string) {
+  const start = Date.UTC(Number(from.slice(0, 4)), Number(from.slice(5, 7)) - 1, Number(from.slice(8, 10)));
+  const end = Date.UTC(Number(to.slice(0, 4)), Number(to.slice(5, 7)) - 1, Number(to.slice(8, 10)));
+  return Math.round((end - start) / 86_400_000);
+}
+
+export function addDays(date: string, days: number) {
+  const value = new Date(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)) + days);
+  return toLocalDateString(value);
 }
 
 export function recordCost(record: FuelRecord) {

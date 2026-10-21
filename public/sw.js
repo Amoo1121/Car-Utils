@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "car-utils-pwa-";
-const CACHE_NAME = `${CACHE_PREFIX}v2`;
+const CACHE_NAME = `${CACHE_PREFIX}v3`;
 const shellUrl = (path) => new URL(path, self.registration.scope).toString();
 const APP_SHELL = ["./", "./index.html", "./favicon.svg", "./manifest.webmanifest"].map(shellUrl);
 

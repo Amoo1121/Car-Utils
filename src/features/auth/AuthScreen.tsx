@@ -1,6 +1,8 @@
-import { CarFront, LockKeyhole, ShieldCheck } from "lucide-react";
+import { BellRing, Gauge, LockKeyhole, ShieldCheck } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import type { AuthCredentials } from "../../repositories/authRepository";
+import { BrandMark } from "../../ui/BrandMark";
+import { Segmented, TextField } from "../../ui/fields";
 
 export type AuthMode = "login" | "register";
 
@@ -43,98 +45,61 @@ export function AuthScreen({
   }
 
   return (
-    <main className="login-screen auth-screen">
-      <section className="login-panel auth-panel">
-        <div className="auth-brand-row">
-          <div className="brand-mark">
-            <CarFront size={28} />
-          </div>
+    <main className="auth-screen">
+      <section className="auth-showcase" aria-hidden="true">
+        <BrandMark size={64} />
+        <h1>你的车，一本账就够了</h1>
+        <ul>
+          <li><Gauge size={18} /> 真实油耗、每公里成本自动算</li>
+          <li><BellRing size={18} /> 保养、保险、年检到期提前提醒</li>
+          <li><ShieldCheck size={18} /> 数据只存在你自己的电脑上</li>
+        </ul>
+      </section>
+      <section className="auth-panel">
+        <div className="auth-brand">
+          <BrandMark size={40} />
           <div>
             <strong>Car Utils</strong>
-            <span>SECURE VEHICLE WORKSPACE</span>
+            <span>车务管家</span>
           </div>
         </div>
-        <div className="auth-heading">
-          <p className="eyebrow">账户认证</p>
-          <h1>{mode === "login" ? "登录车辆工作台" : "创建安全账户"}</h1>
-          <p>每个账户拥有独立的 SQLite 数据空间，密码和会话令牌不会写入车辆 Store。</p>
-        </div>
-
-        <div className="auth-mode-switch" role="tablist" aria-label="认证方式">
-          <button className={mode === "login" ? "active" : ""} type="button" onClick={() => changeMode("login")}>
-            登录
-          </button>
-          <button className={mode === "register" ? "active" : ""} type="button" onClick={() => changeMode("register")}>
-            注册
-          </button>
-        </div>
-
-        <form className="stack auth-form" onSubmit={submit}>
+        <h2>{mode === "login" ? "欢迎回来" : "创建账户"}</h2>
+        <Segmented
+          label="登录或注册"
+          options={[
+            { value: "login", label: "登录" },
+            { value: "register", label: "注册" },
+          ]}
+          value={mode}
+          onChange={changeMode}
+        />
+        <form className="editor-form" onSubmit={submit}>
           {mode === "register" && (
-            <label>
-              用户名
-              <input
-                autoComplete="name"
-                maxLength={60}
-                required
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-                placeholder="例如 Dylan"
-              />
-            </label>
+            <TextField autoComplete="name" label="昵称" maxLength={60} placeholder="怎么称呼你" required value={displayName} onChange={setDisplayName} />
           )}
-          <label>
-            邮箱
-            <input
-              autoComplete="email"
-              required
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-            />
-          </label>
-          <label>
-            密码
-            <input
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-              minLength={8}
-              required
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="至少 8 个字符"
-            />
-          </label>
+          <TextField autoComplete="email" label="邮箱" placeholder="you@example.com" required type="email" value={email} onChange={setEmail} />
+          <TextField
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
+            label="密码"
+            minLength={8}
+            placeholder="至少 8 个字符"
+            required
+            type="password"
+            value={password}
+            onChange={setPassword}
+          />
           {mode === "register" && (
-            <label>
-              确认密码
-              <input
-                autoComplete="new-password"
-                minLength={8}
-                required
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                placeholder="再次输入密码"
-              />
-            </label>
+            <TextField autoComplete="new-password" label="确认密码" minLength={8} required type="password" value={confirmPassword} onChange={setConfirmPassword} />
           )}
-          {error && <p className="auth-error" role="alert">{error}</p>}
-          <button className="primary-button auth-submit" disabled={submitting} type="submit">
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <button className="button button-primary button-lg" disabled={submitting} type="submit">
             <LockKeyhole size={17} />
-            {submitting ? "正在验证..." : mode === "login" ? "安全登录" : "创建账户"}
+            {submitting ? "正在验证…" : mode === "login" ? "登录" : "创建账户"}
           </button>
         </form>
-
-        <div className="auth-security-note">
-          <ShieldCheck size={17} />
-          <span>
-            {mode === "register"
-              ? "使用旧版本的相同邮箱可自动认领原数据；首个注册账户会成为管理员。"
-              : "登录状态由 HttpOnly Cookie 维护。"}
-          </span>
-        </div>
+        <p className="auth-note">
+          {mode === "register" ? "使用旧版本的相同邮箱注册，会自动认领原来的数据。首个注册的账户为管理员。" : "登录状态保持 30 天。"}
+        </p>
       </section>
     </main>
   );

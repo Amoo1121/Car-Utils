@@ -1,0 +1,445 @@
+.chart {
+  margin: 0;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin-bottom: 10px;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chart-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+}
+
+.chart-readout {
+  margin-left: auto;
+  color: var(--text);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-readout small {
+  color: var(--text-3);
+  font-weight: 400;
+}
+
+.chart-empty {
+  padding: 32px 0;
+  color: var(--text-3);
+  text-align: center;
+  font-size: 13.5px;
+}
+
+.bars {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.bar-stack {
+  display: flex;
+  flex-direction: column-reverse;
+  width: min(100%, 34px);
+  min-height: 2px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--surface-2);
+  opacity: 0.75;
+  transition: opacity 0.15s, height 0.4s var(--ease);
+}
+
+.bar-stack span {
+  flex-basis: 0;
+}
+
+.bar.active .bar-stack {
+  opacity: 1;
+}
+
+.bar small {
+  color: var(--text-3);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.bar.active small {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.line-chart svg {
+  display: block;
+  width: 100%;
+  height: 160px;
+  overflow: visible;
+}
+
+.chart-hit {
+  fill: transparent;
+}
+
+.chart-dot {
+  transition: r 0.15s;
+}
+
+.chart-dot.active {
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.chart-reference line {
+  stroke: var(--border-strong);
+  stroke-dasharray: 4 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-reference text {
+  fill: var(--text-3);
+  font-size: 11px;
+  text-anchor: end;
+}
+
+.chart-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.bar-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bar-list-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.bar-list-row strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-list-track {
+  height: 6px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.bar-list-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.bar-list small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.meter {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.meter-warn span {
+  background: var(--warn);
+}
+
+.meter-danger span {
+  background: var(--danger);
+}
+
+.sparkline {
+  display: block;
+}
+
+/* ---------- Existing wash preset & lookup components ---------- */
+.wash-preset-image {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--text-3);
+}
+
+.wash-preset-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.wash-preset-library {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.wash-preset-library > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+}
+
+.wash-preset-library > summary::-webkit-details-marker {
+  display: none;
+}
+
+.wash-preset-library > summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--c-wash);
+}
+
+.wash-preset-library > summary small {
+  color: var(--text-3);
+  font-weight: 400;
+}
+
+.wash-preset-content {
+  display: grid;
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+
+.wash-preset-toolbar {
+  display: grid;
+  grid-template-columns: 1fr 160px;
+  gap: 8px;
+}
+
+.wash-preset-toolbar label {
+  display: grid;
+  gap: 4px;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.wash-preset-search > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+}
+
+.wash-preset-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--text);
+}
+
+.wash-preset-toolbar select {
+  height: 38px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.wash-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.wash-preset-card {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.wash-preset-card.selected {
+  border-color: var(--c-wash);
+  background: var(--c-wash-soft);
+}
+
+.wash-preset-card > button {
+  display: flex;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+
+.wash-preset-card-copy {
+  display: grid;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.wash-preset-card-copy strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.wash-preset-card-meta {
+  display: flex;
+  gap: 6px;
+}
+
+.wash-preset-card a,
+.wash-product-lookup a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.wash-preset-empty {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.wash-product-lookup {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.wash-product-lookup-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wash-product-lookup-heading p {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.wash-product-lookup .ghost-button,
+.wash-product-lookup .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.wash-product-lookup .secondary-button {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.lookup-message {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.lookup-message.error {
+  color: var(--danger);
+}
+
+.wash-product-lookup-results {
+  display: grid;
+  gap: 8px;
+}
+
+.wash-product-lookup-result {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.wash-product-lookup-result.applied {
+  outline: 2px solid var(--accent);
+}
+
+.wash-product-lookup-result p,
+.wash-product-lookup-suggestion {
+  display: block;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.wash-product-lookup-placeholder {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 11px;
+}

@@ -1,7 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import "./styles.css";
+import { applyTheme, readThemePreference } from "./app/theme";
+import "./styles/index.css";
+
+// Apply the theme before first paint to avoid a light flash in dark mode.
+applyTheme(readThemePreference());
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
