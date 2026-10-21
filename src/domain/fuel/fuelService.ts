@@ -22,6 +22,7 @@ export type FuelRecordDraft = {
   fuelLevelAfter: string;
   station: string;
   fullTank: boolean;
+  note?: string;
 };
 
 export type FuelMutationOptions = {
@@ -60,6 +61,7 @@ export function createFuelDraft(record: FuelRecord, fuelGrades: string[]): FuelR
     fuelLevelAfter: record.fuelLevelAfter != null ? String(record.fuelLevelAfter) : "",
     station: record.station,
     fullTank: record.fullTank,
+    note: record.note ?? "",
   };
 }
 
@@ -81,9 +83,30 @@ export function buildFuelRecord(vehicleOrRecord: string | Pick<FuelRecord, "vehi
     fuelLevelBefore: draft.fuelLevelBefore ? Number(draft.fuelLevelBefore) : undefined,
     fuelLevelAfter: draft.fuelLevelAfter ? Number(draft.fuelLevelAfter) : undefined,
     totalCost,
-    station: draft.station,
+    station: draft.station.trim(),
     fullTank: draft.fullTank,
+    note: draft.note?.trim() || undefined,
   };
+}
+
+export type FuelDraftErrors = Partial<Record<keyof FuelRecordDraft, string>>;
+
+export function validateFuelDraft(draft: FuelRecordDraft): FuelDraftErrors {
+  const errors: FuelDraftErrors = {};
+  const volume = Number(draft.volume);
+  const price = Number(draft.pricePerUnit);
+  if (!draft.date) errors.date = "请选择日期";
+  if (!draft.volume.trim() || !Number.isFinite(volume) || volume <= 0) errors.volume = "请输入加注量";
+  if (!draft.pricePerUnit.trim() || !Number.isFinite(price) || price <= 0) errors.pricePerUnit = "请输入单价";
+  if (draft.paidAmount.trim() && !(Number(draft.paidAmount) >= 0)) errors.paidAmount = "金额无效";
+  for (const key of ["fuelLevelBefore", "fuelLevelAfter"] as const) {
+    const value = draft[key];
+    if (value.trim() && !(Number(value) >= 0 && Number(value) <= 100)) errors[key] = "应在 0–100 之间";
+  }
+  if (draft.fuelLevelBefore.trim() && draft.fuelLevelAfter.trim() && Number(draft.fuelLevelAfter) < Number(draft.fuelLevelBefore)) {
+    errors.fuelLevelAfter = "加注后应不低于加注前";
+  }
+  return errors;
 }
 
 export function resolveFuelDraftPaidAmount(draft: FuelRecordDraft) {
