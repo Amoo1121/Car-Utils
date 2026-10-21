@@ -1,0 +1,473 @@
+/* ---------- Fields ---------- */
+.editor-form {
+  display: grid;
+  gap: 16px;
+}
+
+.editor-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.field {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field-label {
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.field-hint {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.field-error,
+.form-error {
+  color: var(--danger);
+  font-size: 12.5px;
+}
+
+.form-error,
+.form-success {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  font-size: 13.5px;
+}
+
+.form-success {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.field input,
+.field select,
+.field textarea,
+.autocomplete-field input,
+.quick-date-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 15px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.field textarea {
+  height: auto;
+  padding: 10px 12px;
+}
+
+.field input:hover,
+.field select:hover,
+.autocomplete-field input:hover {
+  border-color: var(--border-strong);
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.autocomplete-field input:focus,
+.quick-date-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus);
+}
+
+.field.has-error input {
+  border-color: var(--danger);
+}
+
+.field input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.field input::-webkit-outer-spin-button,
+.field input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-affix {
+  position: absolute;
+  color: var(--text-3);
+  font-size: 13.5px;
+  pointer-events: none;
+}
+
+.input-prefix {
+  left: 12px;
+}
+
+.input-suffix {
+  right: 12px;
+}
+
+.input-wrap.has-prefix input {
+  padding-left: 30px;
+}
+
+.input-wrap.has-suffix input {
+  padding-right: 64px;
+}
+
+.field-hero input {
+  height: 64px;
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.field-hero .input-prefix {
+  font-size: 22px;
+  font-weight: 600;
+  left: 16px;
+}
+
+.field-hero .input-wrap.has-prefix input {
+  padding-left: 40px;
+}
+
+/* ---------- Segmented / chips ---------- */
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-2);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.segmented-sm button {
+  padding: 5px 10px;
+  font-size: 13px;
+}
+
+.segmented button.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"] .segmented button.active {
+  background: var(--surface-3);
+}
+
+.chip-group,
+.quick-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  padding: 7px 13px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.chip.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.chip-accent {
+  border-style: dashed;
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.quick-date-input {
+  width: auto;
+  height: 34px;
+  border-radius: 999px;
+  font-size: 13.5px;
+}
+
+/* ---------- Toggle ---------- */
+.toggle-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.toggle-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.toggle-copy small {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.toggle-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toggle-track {
+  flex: none;
+  position: relative;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  transition: background 0.2s;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
+  transition: transform 0.2s var(--ease);
+}
+
+.toggle-input:checked + .toggle-track {
+  background: var(--accent);
+}
+
+.toggle-input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(18px);
+}
+
+.toggle-input:focus-visible + .toggle-track {
+  box-shadow: var(--focus);
+}
+
+/* ---------- Stars ---------- */
+.star-rating {
+  display: flex;
+  gap: 4px;
+}
+
+.star-rating button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--border-strong);
+}
+
+.star-rating button.active {
+  color: #f2b01e;
+}
+
+.star-rating button.active svg {
+  fill: currentColor;
+}
+
+/* ---------- Gauge ---------- */
+.gauge-field {
+  display: grid;
+  gap: 10px;
+}
+
+.gauge-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gauge-input-row .input-wrap {
+  flex: 1;
+}
+
+.gauge-input-row .input-wrap.has-suffix input {
+  padding-right: 36px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Beats the generic `.field input` box styles. */
+.field input.gauge-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  margin: 7px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: none;
+  background: linear-gradient(90deg, var(--c-fuel) var(--gauge), var(--surface-3) var(--gauge));
+  cursor: pointer;
+}
+
+.gauge-field.empty input.gauge-slider {
+  background: var(--surface-3);
+}
+
+.gauge-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--c-fuel);
+  box-shadow: var(--shadow-sm);
+}
+
+.gauge-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--c-fuel);
+}
+
+.gauge-field.empty .gauge-slider::-webkit-slider-thumb {
+  border-color: var(--border-strong);
+}
+
+.gauge-presets {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.gauge-presets button {
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gauge-presets button:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.gauge-presets button.active {
+  border-color: var(--c-fuel);
+  background: var(--c-fuel-soft);
+  color: var(--c-fuel-strong, var(--text));
+}
+
+/* ---------- Autocomplete (station field) ---------- */
+.autocomplete-field {
+  position: relative;
+  display: grid;
+  gap: 6px;
+}
+
+.autocomplete-field > label {
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.autocomplete-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin-top: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+}
+
+.autocomplete-option {
+  display: grid;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  text-align: left;
+}
+
+.autocomplete-option.active {
+  background: var(--accent-soft);
+}
+
+.autocomplete-option small {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.inline-check input {
+  accent-color: var(--accent);
+}
+
+.inline-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: -8px;
+  color: var(--warn);
+  font-size: 13px;
+}

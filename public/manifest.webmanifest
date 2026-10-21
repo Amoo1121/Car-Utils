@@ -1,21 +1,31 @@
 {
   "name": "Car Utils",
   "short_name": "Car Utils",
-  "description": "车辆加油、洗车和耗材记录工具",
+  "description": "车辆加油、洗车、保养与费用管家",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#f5f7f3",
-  "theme_color": "#17201b",
+  "orientation": "any",
+  "background_color": "#f4f5f2",
+  "theme_color": "#0d1110",
   "icons": [
     {
-      "src": "./favicon.svg",
-      "sizes": "64x64 192x192 512x512",
+      "src": "./app-icon.svg",
+      "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./favicon.svg",
+      "sizes": "64x64",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ],
-  "categories": ["utilities", "finance", "productivity"],
+  "categories": [
+    "utilities",
+    "finance",
+    "productivity"
+  ],
   "lang": "zh-CN"
 }

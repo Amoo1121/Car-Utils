@@ -100,75 +100,67 @@ export function AccountManager({
   }
 
   return (
-    <section className="account-workspace tab-stack">
-      <section className="account-identity-panel">
-        <div className="account-avatar"><UserRound size={25} /></div>
+    <>
+      <section className="card account-identity">
+        <span className="avatar avatar-lg" aria-hidden="true">{user.displayName.slice(0, 1).toUpperCase()}</span>
         <div>
-          <p className="eyebrow">AUTHENTICATED ACCOUNT</p>
           <h2>{user.displayName}</h2>
           <span>{user.email}</span>
         </div>
-        <div className="account-role-badge">
-          <ShieldCheck size={15} />
-          {user.role === "admin" ? "系统管理员" : "普通用户"}
-        </div>
+        <span className="badge"><ShieldCheck size={13} /> {user.role === "admin" ? "管理员" : "普通用户"}</span>
       </section>
 
       {(feedback || error) && (
-        <p className={error ? "status-banner error" : "status-banner success"} role="status">
+        <p className={error ? "form-error" : "form-success"} role="status">
           {error || feedback}
         </p>
       )}
 
-      <div className="account-settings-grid">
-        <form className="panel account-form" onSubmit={saveProfile}>
-          <div className="section-title"><UserRound size={17} /><span>账户资料</span></div>
-          <label>用户名<input maxLength={60} required value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label>
-          <label>登录邮箱<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+      <div className="two-col">
+        <form className="card editor-form" onSubmit={saveProfile}>
+          <header className="card-head"><h2><UserRound size={17} />账户资料</h2></header>
+          <label className="field"><span className="field-label">昵称</span><input maxLength={60} required value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label>
+          <label className="field"><span className="field-label">登录邮箱</span><input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
           {email.trim().toLowerCase() !== user.email && (
-            <label>当前密码<input required type="password" value={profilePassword} onChange={(event) => setProfilePassword(event.target.value)} /></label>
+            <label className="field"><span className="field-label">当前密码</span><input required type="password" value={profilePassword} onChange={(event) => setProfilePassword(event.target.value)} /></label>
           )}
-          <button className="primary-button" type="submit">保存账户资料</button>
+          <div className="button-row"><button className="button button-primary" type="submit">保存</button></div>
         </form>
 
-        <form className="panel account-form" onSubmit={savePassword}>
-          <div className="section-title"><KeyRound size={17} /><span>修改密码</span></div>
-          <label>当前密码<input autoComplete="current-password" required type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label>
-          <label>新密码<input autoComplete="new-password" minLength={8} required type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>
-          <label>确认新密码<input autoComplete="new-password" minLength={8} required type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label>
-          <button className="secondary-button" type="submit">更新密码</button>
+        <form className="card editor-form" onSubmit={savePassword}>
+          <header className="card-head"><h2><KeyRound size={17} />修改密码</h2></header>
+          <label className="field"><span className="field-label">当前密码</span><input autoComplete="current-password" required type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label>
+          <label className="field"><span className="field-label">新密码</span><input autoComplete="new-password" minLength={8} required type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>
+          <label className="field"><span className="field-label">确认新密码</span><input autoComplete="new-password" minLength={8} required type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label>
+          <div className="button-row"><button className="button button-soft" type="submit">更新密码</button></div>
         </form>
       </div>
 
       {user.role === "admin" && (
-        <section className="panel admin-users-panel">
-          <div className="panel-heading-row">
-            <div>
-              <div className="section-title compact"><UsersRound size={17} /><span>用户管理</span></div>
-              <p className="filter-count">管理已注册账户及其访问状态</p>
-            </div>
-            <span className="admin-user-count">{users.length} 个账户</span>
-          </div>
-          {loadingUsers ? <p className="empty">正在加载用户...</p> : (
-            <div className="admin-user-list">
+        <section className="card">
+          <header className="card-head">
+            <h2><UsersRound size={17} />用户管理</h2>
+            <span className="card-sub">{users.length} 个账户</span>
+          </header>
+          {loadingUsers ? <p className="card-description">正在加载用户…</p> : (
+            <ul className="simple-list">
               {users.map((item) => (
-                <div className="admin-user-row" key={item.id}>
-                  <div className="admin-user-main">
-                    <div className="admin-user-icon"><UserRound size={17} /></div>
-                    <div><strong>{item.displayName}</strong><span>{item.email}</span></div>
-                  </div>
-                  <span className={`account-status ${item.status}`}>{item.status === "active" ? "已启用" : "已停用"}</span>
-                  <span>{item.role === "admin" ? "管理员" : "用户"}</span>
-                  <time dateTime={new Date(item.createdAt).toISOString()}>{new Date(item.createdAt).toLocaleDateString("zh-CN")}</time>
-                  <button className="text-button" disabled={item.id === user.id} type="button" onClick={() => toggleStatus(item)}>
-                    {item.status === "active" ? "停用" : "启用"}
-                  </button>
-                </div>
+                <li key={item.id}>
+                  <span>
+                    {item.displayName} <small>{item.email} · {item.role === "admin" ? "管理员" : "用户"} · {new Date(item.createdAt).toLocaleDateString("zh-CN")}</small>
+                  </span>
+                  <span className="button-row">
+                    <span className={item.status === "active" ? "badge badge-accent" : "badge"}>{item.status === "active" ? "已启用" : "已停用"}</span>
+                    <button className="button button-ghost button-sm" disabled={item.id === user.id} type="button" onClick={() => toggleStatus(item)}>
+                      {item.status === "active" ? "停用" : "启用"}
+                    </button>
+                  </span>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </section>
       )}
-    </section>
+    </>
   );
 }

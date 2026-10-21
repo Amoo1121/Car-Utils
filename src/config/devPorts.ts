@@ -1,6 +1,7 @@
 export type DevPortEnvironment = {
   CAR_UTILS_WEB_PORT?: string;
   CAR_UTILS_API_PORT?: string;
+  CAR_UTILS_APP_PORT?: string;
 };
 
 export type DevPorts = {
@@ -8,10 +9,16 @@ export type DevPorts = {
   apiPort: number;
 };
 
+/**
+ * The Vite dev server proxies `/api` to the always-on native service (port 4173 by default),
+ * so development uses the same SQLite data as the installed app. Set CAR_UTILS_API_PORT
+ * to point at a separate backend instead.
+ */
 export function resolveDevPorts(environment: DevPortEnvironment): DevPorts {
+  const appPort = parsePort(environment.CAR_UTILS_APP_PORT, 4173, "CAR_UTILS_APP_PORT");
   return {
     webPort: parsePort(environment.CAR_UTILS_WEB_PORT, 5173, "CAR_UTILS_WEB_PORT"),
-    apiPort: parsePort(environment.CAR_UTILS_API_PORT, 3001, "CAR_UTILS_API_PORT"),
+    apiPort: parsePort(environment.CAR_UTILS_API_PORT, appPort, "CAR_UTILS_API_PORT"),
   };
 }
 

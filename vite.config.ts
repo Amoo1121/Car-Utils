@@ -10,6 +10,10 @@ export default defineConfig(({mode}) => {
     return {
         base: "./",
         plugins: [react()],
+        build: {
+            // The CloudBase SDK is loaded lazily in its own chunk.
+            chunkSizeWarningLimit: 700,
+        },
         server: {
             port: ports.webPort,
             strictPort: true,

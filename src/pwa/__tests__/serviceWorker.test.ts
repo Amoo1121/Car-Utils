@@ -11,7 +11,7 @@ function createWorker() {
   const caches = {
     open: vi.fn().mockResolvedValue(cache),
     match: vi.fn().mockResolvedValue(undefined),
-    keys: vi.fn().mockResolvedValue(["car-utils-pwa-v1", "car-utils-pwa-v2", "another-app"]),
+    keys: vi.fn().mockResolvedValue(["car-utils-pwa-v1", "car-utils-pwa-v2", "car-utils-pwa-v3", "another-app"]),
     delete: vi.fn().mockResolvedValue(true),
   };
   const fetcher = vi.fn().mockResolvedValue(new Response("asset"));
@@ -53,7 +53,9 @@ describe("production service worker", () => {
     worker.listeners.get("activate")!({ waitUntil });
     await waitUntil.mock.calls[0][0];
 
-    expect(worker.caches.delete).toHaveBeenCalledExactlyOnceWith("car-utils-pwa-v1");
+    expect(worker.caches.delete).toHaveBeenCalledTimes(2);
+    expect(worker.caches.delete).toHaveBeenCalledWith("car-utils-pwa-v1");
+    expect(worker.caches.delete).toHaveBeenCalledWith("car-utils-pwa-v2");
     expect(worker.claim).toHaveBeenCalledOnce();
   });
 

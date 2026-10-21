@@ -8,9 +8,10 @@ export type FuelStationFieldProps = {
   vehicleId: string;
   value: string;
   onChange: (value: string) => void;
+  label?: string;
 };
 
-export function FuelStationField({ fuelRecords, vehicleId, value, onChange }: FuelStationFieldProps) {
+export function FuelStationField({ fuelRecords, vehicleId, value, onChange, label = "加油站" }: FuelStationFieldProps) {
   const suggestions = useMemo(
     () => buildFuelStationSuggestions(fuelRecords, { vehicleId, query: value, limit: 6 }),
     [fuelRecords, vehicleId, value],
@@ -23,7 +24,7 @@ export function FuelStationField({ fuelRecords, vehicleId, value, onChange }: Fu
 
   return (
     <Autocomplete
-      label="加油站"
+      label={label}
       onChange={onChange}
       options={options}
       placeholder="输入名称，可选择历史加油站"

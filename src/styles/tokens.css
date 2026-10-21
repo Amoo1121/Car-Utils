@@ -1,0 +1,91 @@
+/* Design tokens. Light theme by default; dark theme via [data-theme="dark"]. */
+:root {
+  color-scheme: light;
+  --font-sans: "SF Pro Text", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --bg: #f4f5f2;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f0f2ee;
+  --surface-3: #e6e9e3;
+  --border: #e1e5de;
+  --border-strong: #cdd3c9;
+  --text: #121614;
+  --text-2: #4c5650;
+  --text-3: #808a84;
+
+  --accent: #0e9f76;
+  --accent-strong: #0b7f5e;
+  --accent-soft: #e0f4ec;
+  --accent-contrast: #ffffff;
+  --warn: #c27a06;
+  --warn-soft: #fbf0d9;
+  --danger: #d23d36;
+  --danger-soft: #fbe5e3;
+  --positive: #0e9f76;
+
+  --c-fuel: #e8912d;
+  --c-fuel-soft: #fcefdf;
+  --c-wash: #2f86d6;
+  --c-wash-soft: #e2eefa;
+  --c-expense: #7b5cd6;
+  --c-expense-soft: #ece7fa;
+
+  --hero-bg: radial-gradient(120% 140% at 100% 0%, #1f3b31 0%, #121a17 55%, #0b0f0d 100%);
+  --hero-text: #eef6f2;
+  --hero-muted: #9fb2a9;
+
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --shadow-sm: 0 1px 2px rgb(16 24 20 / 6%);
+  --shadow: 0 1px 2px rgb(16 24 20 / 5%), 0 8px 24px -12px rgb(16 24 20 / 14%);
+  --shadow-lg: 0 24px 64px -16px rgb(10 16 13 / 32%);
+  --focus: 0 0 0 3px rgb(14 159 118 / 30%);
+
+  --sidebar-width: 248px;
+  --topbar-height: 64px;
+  --tabbar-height: 64px;
+  --page-max: 1120px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d1110;
+  --bg-elevated: #151b19;
+  --surface: #141a18;
+  --surface-2: #1b2320;
+  --surface-3: #24302b;
+  --border: #232d29;
+  --border-strong: #33403a;
+  --text: #e8efeb;
+  --text-2: #a9b6af;
+  --text-3: #74827b;
+
+  --accent: #2fd29f;
+  --accent-strong: #5be3b7;
+  --accent-soft: rgb(47 210 159 / 14%);
+  --accent-contrast: #06231a;
+  --warn: #f0b445;
+  --warn-soft: rgb(240 180 69 / 14%);
+  --danger: #ff6b62;
+  --danger-soft: rgb(255 107 98 / 14%);
+  --positive: #2fd29f;
+
+  --c-fuel: #f5a54a;
+  --c-fuel-soft: rgb(245 165 74 / 14%);
+  --c-wash: #5aa9f0;
+  --c-wash-soft: rgb(90 169 240 / 14%);
+  --c-expense: #a58bf2;
+  --c-expense-soft: rgb(165 139 242 / 14%);
+
+  --hero-bg: radial-gradient(120% 140% at 100% 0%, #1d3a2f 0%, #111816 55%, #0a0d0c 100%);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 12px 32px -16px rgb(0 0 0 / 60%);
+  --shadow-lg: 0 24px 64px -12px rgb(0 0 0 / 70%);
+  --focus: 0 0 0 3px rgb(47 210 159 / 35%);
+}

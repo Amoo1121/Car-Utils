@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { resolveDevPorts } from "../devPorts";
 
 describe("resolveDevPorts", () => {
-  it("uses the existing development ports by default", () => {
-    expect(resolveDevPorts({})).toEqual({ webPort: 5173, apiPort: 3001 });
+  it("proxies the API to the native app service by default", () => {
+    expect(resolveDevPorts({})).toEqual({ webPort: 5173, apiPort: 4173 });
+    expect(resolveDevPorts({ CAR_UTILS_APP_PORT: "4180" })).toEqual({ webPort: 5173, apiPort: 4180 });
   });
 
   it("reads configurable frontend and backend ports", () => {
