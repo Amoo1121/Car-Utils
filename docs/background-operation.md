@@ -1,128 +1,56 @@
-# Car Utils 后台常驻使用指南
+# 后台运行与启动方式
 
-Car Utils 的日常版由两个 Docker 容器组成：
+Car Utils 2.0 以一个原生 Node 进程运行：同一个 Fastify 服务同时提供页面、API 和 SQLite 存储，由 macOS 的 launchd 托管。不再需要 Docker Desktop、Terminal 或 IDE 常驻。
 
-- `car-utils-web`：提供已经构建好的 React 页面，并代理 `/api` 请求。
-- `car-utils-server`：提供密码认证、业务 Store API 和 SQLite 持久化。
+## 组成
 
-两者都使用 `restart: unless-stopped`。启动完成后不依赖 PyCharm、VS Code、npm、pnpm 或任何持续打开的 Terminal。
+| 项目 | 位置 |
+| --- | --- |
+| 后台服务 | `~/Library/LaunchAgents/com.carutils.server.plist`（登录自启、崩溃自动重启） |
+| App 图标 | `~/Applications/Car Utils.app`（Launchpad / Spotlight 可搜到） |
+| 数据库 | `~/Library/Application Support/Car Utils/car-utils.sqlite` |
+| 自动备份 | `~/Library/Application Support/Car Utils/backups/`（每天一份，保留 30 份） |
+| 日志 | `~/Library/Logs/Car Utils/server.log` |
+| 访问地址 | `http://localhost:4173/`（端口可用 `.env` 的 `CAR_UTILS_APP_PORT` 修改） |
 
-## 一键启动
-
-1. 在 Finder 打开 Car Utils 项目目录。
-2. 双击 `start-car-utils.command`。
-3. 首次运行时等待 Docker 镜像构建完成。
-4. 浏览器会自动打开 `http://localhost:4173/`。
-5. 页面打开后可以关闭 Terminal。
-
-脚本发现 Docker Desktop 未运行时，会自动打开 Docker Desktop，并等待它准备完成后继续。
-
-如果 macOS 首次询问使用哪个程序打开 `.command` 文件，请选择 Terminal。脚本是项目内的纯文本文件，可以用任意编辑器查看内容。
-
-## 停止
-
-双击：
-
-```text
-stop-car-utils.command
-```
-
-或执行：
+## 安装
 
 ```bash
-npm run app:stop
+npm run setup
 ```
 
-停止只会停止容器，不会删除 SQLite 文件、账户、会话表或 Docker volume。
+或在 Finder 里双击 `start-car-utils.command`。安装过程：
 
-## 查看状态
+1. 安装依赖并构建前端、后端。
+2. 停止旧版 Docker 容器并关闭其自动重启（容器和数据卷都保留）。
+3. 若本机还没有数据库，从 Docker 数据卷 `car-utils_car-utils-sqlite` 只读复制一份，校验完整性后启用。
+4. 写入 launchd 服务并等待健康检查通过。
+5. 生成 `Car Utils.app` 并打开。
+
+打开 App 时会优先使用 Chrome / Edge / Brave 的独立窗口模式（无标签栏、像原生 App）；都没有安装时使用默认浏览器。想始终用默认浏览器，在 `.env` 里设置 `CAR_UTILS_BROWSER=default`。
+
+## 日常命令
 
 ```bash
-npm run app:status
+npm run car -- status     # 运行状态、数据位置
+npm run car -- restart    # 拉取新代码后：npm run app:restart（会重新构建）
+npm run car -- stop       # 停止（下次登录 macOS 会自动启动）
+npm run car -- backup     # 立即备份
+npm run car -- logs       # 最近日志
+npm run car -- uninstall  # 移除服务与 App 图标，保留全部数据
 ```
 
-正常情况下应看到：
+## 手机访问
 
-```text
-car-utils-web      healthy
-car-utils-server   healthy
-```
+服务默认监听所有网卡。Mac 与手机在同一 Wi-Fi 时，在「设置 → 多设备」里可以看到局域网地址，用手机 Safari 打开并“添加到主屏幕”。所有数据接口都需要登录。如果只想本机访问，在 `.env` 中设置 `CAR_UTILS_HOST=127.0.0.1` 后运行 `npm run car -- restart`。
 
-查看最近日志：
+## 数据安全
 
-```bash
-docker compose --profile desktop logs --tail=100
-```
+- 迁移只读取 Docker 数据卷，从不修改或删除它。确认新版本稳定后，可以自行在 Docker Desktop 里删除旧容器；数据卷可以一直留作备份。
+- 若需要重新从 Docker 导入：`npm run car -- migrate --force`（会先把当前数据库备份到 `backups/`）。
+- 从备份恢复：停止服务，把 `backups/` 中的某个 `.sqlite` 复制为 `car-utils.sqlite`，再启动服务。
+- 浏览器 `localStorage` 仍保留一份即时备份，后端暂时不可用时页面不会白屏，恢复后自动合并。
 
-持续查看日志：
+## Docker（可选）
 
-```bash
-npm run app:logs
-```
-
-## Mac 重启后的行为
-
-在 Docker Desktop 设置中启用登录时自动启动。只要容器不是通过停止脚本主动停止，Docker Desktop 启动后会根据 `restart: unless-stopped` 恢复 Car Utils。
-
-若容器没有自动恢复，再双击一次 `start-car-utils.command` 即可。该操作是幂等的，不会重复创建数据库，也不会覆盖 Store。
-
-## 后台版与开发版的区别
-
-| 用途 | 地址 | 是否依赖 Terminal |
-| --- | --- | --- |
-| 后台日常版 | `http://localhost:4173/` | 否 |
-| Vite 开发版 | `http://localhost:5173/` 或 `.env` 中的开发端口 | 是 |
-
-两个地址是不同的浏览器来源，因此 localStorage 备份相互独立，但它们连接同一个 SQLite 后端。同一主机名的 Cookie 不按端口隔离，登录会话可能共用；若页面要求登录，使用原账户即可，车辆账本仍来自同一份 SQLite 数据。
-
-## 自定义后台端口
-
-在项目根目录 `.env` 中设置：
-
-```env
-CAR_UTILS_APP_PORT=4174
-```
-
-重新双击启动脚本后，使用 `http://localhost:4174/`。请尽量固定端口，避免 `localStorage` 备份分散到不同浏览器来源。
-
-## 更新代码后
-
-拉取或修改代码后，再次双击启动脚本即可。脚本执行带构建的 `docker compose up`，会在需要时重建前后端镜像，并保留现有 SQLite volume。
-
-## 常见问题
-
-### 容器健康，但页面提示后端不可用
-
-先验证页面实际使用的代理地址（自定义端口时替换 4173）：
-
-```bash
-curl -i http://localhost:4173/api/health
-```
-
-正常返回 `200` 和 `{"ok":true}`。Web 容器的健康检查也会验证这条代理链路。
-
-旧版本的 PWA Service Worker 曾错误缓存 `/api/store` 和登录会话，导致读取旧版本、保存返回 `409`，最终被误报为后端不可用。更新后只对页面资源使用离线缓存，API 响应标记 `Cache-Control: no-store`；新 Service Worker 会自动清理旧 PWA 缓存，保留 localStorage 和 SQLite。
-
-重新运行启动脚本后刷新页面，待更新完成后再点页面右上角“刷新后端数据”。如果第一次仍有旧提示，再刷新一次即可让新 Service Worker 接管。无需清除网站数据或删除浏览器备份。
-
-### 端口被占用
-
-修改 `.env` 中的 `CAR_UTILS_APP_PORT`，然后重新启动。日常后台端口与 `CAR_UTILS_WEB_PORT` 开发端口应使用不同数字。
-
-### 页面打不开
-
-依次检查：
-
-```bash
-docker info
-npm run app:status
-docker compose --profile desktop logs --tail=100
-```
-
-### 数据会不会随着容器停止消失
-
-不会。SQLite 文件位于 Docker named volume `car-utils_car-utils-sqlite`。停止或重建容器不会删除它。只有显式执行带 `-v` 的删除命令才会删除 volume，因此不要执行：
-
-```bash
-docker compose down -v
-```
+旧的 Docker 方式仍然可用（`npm run docker:up`），适合部署到 NAS 或服务器。注意它使用独立的 Docker 数据卷，与本机原生版的数据库不是同一份。

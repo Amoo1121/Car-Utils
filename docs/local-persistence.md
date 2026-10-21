@@ -1,6 +1,8 @@
 # Car Utils 本地持久化说明
 
-本文档说明 Car Utils 的本地 Docker 后端、密码认证与 SQLite 持久化方案。
+> 2.0 起默认以原生进程运行，数据库位于 `~/Library/Application Support/Car Utils/`，不再依赖 Docker。启动与迁移以 [background-operation.md](background-operation.md) 为准；下文的认证、Store 隔离与 SQLite 表结构说明仍然适用，“启动方式”一节仅针对可选的 Docker 部署。
+
+本文档说明 Car Utils 的本地后端、密码认证与 SQLite 持久化方案。
 
 ## 为什么从 localStorage 迁移到 SQLite
 
