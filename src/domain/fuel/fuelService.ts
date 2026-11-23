@@ -83,6 +83,7 @@ export function buildFuelRecord(vehicleOrRecord: string | Pick<FuelRecord, "vehi
     fuelLevelBefore: draft.fuelLevelBefore ? Number(draft.fuelLevelBefore) : undefined,
     fuelLevelAfter: draft.fuelLevelAfter ? Number(draft.fuelLevelAfter) : undefined,
     totalCost,
+    discountAmount: draft.paidAmount.trim() ? Math.max(0, Number((totalCost - Number(draft.paidAmount)).toFixed(2))) : undefined,
     station: draft.station.trim(),
     fullTank: draft.fullTank,
     note: draft.note?.trim() || undefined,
@@ -98,7 +99,7 @@ export function validateFuelDraft(draft: FuelRecordDraft): FuelDraftErrors {
   if (!draft.date) errors.date = "请选择日期";
   if (!draft.volume.trim() || !Number.isFinite(volume) || volume <= 0) errors.volume = "请输入加注量";
   if (!draft.pricePerUnit.trim() || !Number.isFinite(price) || price <= 0) errors.pricePerUnit = "请输入单价";
-  if (draft.paidAmount.trim() && !(Number(draft.paidAmount) >= 0)) errors.paidAmount = "金额无效";
+  if (draft.paidAmount.trim() && (!Number.isFinite(Number(draft.paidAmount)) || Number(draft.paidAmount) < 0)) errors.paidAmount = "金额无效";
   for (const key of ["fuelLevelBefore", "fuelLevelAfter"] as const) {
     const value = draft[key];
     if (value.trim() && !(Number(value) >= 0 && Number(value) <= 100)) errors[key] = "应在 0–100 之间";

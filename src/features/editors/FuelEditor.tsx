@@ -11,6 +11,8 @@ import {
   type FuelRecordDraft,
 } from "../../domain/fuel/fuelService";
 import { estimateOdometer, previousOdometer } from "../../domain/vehicle/odometer";
+import { estimateFuelOdometer } from "../../domain/fuel/estimateFuelOdometer";
+import { fuelDiscount, paymentAfterDiscount, updateFuelFullTank, updateFuelLevelAfter, updateFuelPricing, type FuelPricingMode } from "../../domain/fuel/fuelDraft";
 import { filterActive, fuelGrades, type FuelRecord } from "../../shared/carData";
 import { useWorkspace } from "../../app/workspace";
 import { ChipGroup, Field, GaugeField, NumberField, TextField, Toggle } from "../../ui/fields";
@@ -53,16 +55,23 @@ export function FuelEditor({ recordId, onClose }: { recordId?: string; onClose: 
   });
   const [draft, setDraft] = useState(initial);
   const [touched, setTouched] = useState(false);
-  const [lastEdited, setLastEdited] = useState<MoneyField[]>([]);
+  const [pricingMode, setPricingMode] = useState<FuelPricingMode>("paid");
+  const [discountInput, setDiscountInput] = useState("");
   const [showGauge, setShowGauge] = useState(
     () => Boolean(existing?.fuelLevelBefore != null || existing?.fuelLevelAfter != null) ||
       activeFuel.slice(0, 5).some((record) => record.fuelLevelBefore != null || record.fuelLevelAfter != null),
   );
   const errors = validateFuelDraft(draft);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial) || (pricingMode === "discount" && discountInput.trim() !== "");
 
   const sources = useMemo(() => [...allFuelRecords, ...washRecords, ...expenseRecords], [allFuelRecords, washRecords, expenseRecords]);
-  const estimate = useMemo(() => (vehicle ? estimateOdometer(vehicle, sources) : undefined), [vehicle, sources]);
+  const estimate = useMemo(() => (vehicle ? estimateFuelOdometer(vehicle, activeFuel, draft.date, parseNumber(draft.fuelLevelBefore), existing?.id) : undefined), [vehicle, activeFuel, draft.date, draft.fuelLevelBefore, existing?.id]);
+  const dailyEstimate = useMemo(() => vehicle ? estimateOdometer(
+    { ...vehicle, currentOdometer: undefined },
+    sources.filter((item) => item.id !== existing?.id && item.date < draft.date),
+    draft.date,
+  ) : undefined, [vehicle, sources, draft.date, existing?.id]);
+  const suggestedKm = estimate?.odometer ?? (dailyEstimate?.dailyDistance ? dailyEstimate.estimatedToday : undefined);
   const lastKm = vehicle ? previousOdometer(vehicle, sources.filter((item) => item.id !== existing?.id), draft.date) : undefined;
   const odometer = parseNumber(draft.odometer);
   const odometerWarning =
@@ -76,19 +85,9 @@ export function FuelEditor({ recordId, onClose }: { recordId?: string; onClose: 
     setDraft((current) => ({ ...current, ...changes }));
   }
 
-  /** Any two of volume / unit price / paid amount determine the third. The oldest-edited one is recomputed. */
   function updateMoney(field: MoneyField, value: string) {
-    const order = [field, ...lastEdited.filter((item) => item !== field)].slice(0, 2);
-    setLastEdited(order);
-    const next = { ...draft, [field]: value };
-    const target = (["volume", "pricePerUnit", "paidAmount"] as MoneyField[]).find((item) => !order.includes(item));
-    const volume = parseNumber(next.volume);
-    const price = parseNumber(next.pricePerUnit);
-    const paid = parseNumber(next.paidAmount);
-    if (order.length === 2 && target === "paidAmount" && volume && price) next.paidAmount = trimNumber(volume * price, 2);
-    if (order.length === 2 && target === "volume" && paid && price) next.volume = trimNumber(paid / price, 2);
-    if (order.length === 2 && target === "pricePerUnit" && paid && volume) next.pricePerUnit = trimNumber(paid / volume, 2);
-    setDraft(next);
+    if (field === "paidAmount") setPricingMode("paid");
+    setDraft((current) => updateFuelPricing(current, field, value, pricingMode, discountInput));
   }
 
   const volume = parseNumber(draft.volume) ?? 0;
@@ -96,6 +95,11 @@ export function FuelEditor({ recordId, onClose }: { recordId?: string; onClose: 
   const listTotal = volume * price;
   const paid = parseNumber(draft.paidAmount) ?? listTotal;
   const discount = listTotal - paid;
+  const discountError = pricingMode === "discount" && discountInput.trim()
+    ? !Number.isFinite(Number(discountInput)) || Number(discountInput) < 0
+      ? "优惠金额不能为负数"
+      : Number(discountInput) > listTotal ? "优惠不能超过挂牌总价" : undefined
+    : undefined;
 
   // Live consumption preview: what this refuel would add to the history.
   const preview = useMemo(() => {
@@ -115,7 +119,7 @@ export function FuelEditor({ recordId, onClose }: { recordId?: string; onClose: 
 
   function save(keepOpen: boolean) {
     setTouched(true);
-    if (!vehicle || Object.keys(errors).length > 0) return;
+    if (!vehicle || Object.keys(errors).length > 0 || discountError) return;
     const input = buildFuelRecord(vehicle.id, draft);
     const ok = existing
       ? mutate((store, user) => updateFuelRecordInStore(store, user, existing.id, { ...stripEntity(existing), ...input }), "加油记录已更新")
@@ -123,7 +127,8 @@ export function FuelEditor({ recordId, onClose }: { recordId?: string; onClose: 
     if (!ok) return;
     if (keepOpen) {
       setDraft({ ...createEmptyFuelDraft(draft.fuelGrade), pricePerUnit: draft.pricePerUnit, date: draft.date });
-      setLastEdited([]);
+      setPricingMode("paid");
+      setDiscountInput("");
       setTouched(false);
     } else {
       onClose();
@@ -172,6 +177,18 @@ export function FuelEditor({ recordId, onClose }: { recordId?: string; onClose: 
             <NumberField error={show("volume")} label={isEv ? "充电量" : "加油量"} suffix={unit} value={draft.volume} onChange={(value) => updateMoney("volume", value)} />
             <NumberField error={show("pricePerUnit")} label="挂牌单价" suffix={`元/${unit}`} value={draft.pricePerUnit} onChange={(value) => updateMoney("pricePerUnit", value)} />
           </div>
+          <NumberField
+            error={touched ? discountError : undefined}
+            label="优惠金额"
+            placeholder="0"
+            prefix="¥"
+            value={pricingMode === "discount" ? discountInput : fuelDiscount(draft)}
+            onChange={(value) => {
+              setPricingMode("discount");
+              setDiscountInput(value);
+              update({ paidAmount: paymentAfterDiscount(draft, value) });
+            }}
+          />
           {listTotal > 0 && (
             <p className="editor-calc" aria-live="polite">
               {volume > 0 && `实付单价 ${money(paid / volume, true)}/${unit}`}
@@ -181,23 +198,7 @@ export function FuelEditor({ recordId, onClose }: { recordId?: string; onClose: 
           )}
         </section>
 
-        <div className="editor-row">
-          <TextField error={show("date")} label="日期" type="date" value={draft.date} onChange={(value) => update({ date: value })} />
-          <NumberField
-            hint={odometerWarning ? undefined : lastKm ? `上次 ${km(lastKm)}${estimate?.estimatedToday && !existing ? ` · 估计现在约 ${km(Math.round(estimate.estimatedToday))}` : ""}` : "用于计算油耗"}
-            label="当前里程"
-            placeholder={estimate?.estimatedToday && !existing ? String(Math.round(estimate.estimatedToday)) : undefined}
-            suffix="km"
-            value={draft.odometer}
-            onChange={(value) => update({ odometer: value })}
-          />
-        </div>
-        {odometerWarning && (
-          <p className="inline-warning">
-            <AlertTriangle size={14} />
-            {odometerWarning}
-          </p>
-        )}
+        <TextField error={show("date")} label="日期" type="date" value={draft.date} onChange={(value) => update({ date: value })} />
 
         <Field label={isEv ? "充电方式" : "油品"}>
           <ChipGroup
@@ -228,18 +229,41 @@ export function FuelEditor({ recordId, onClose }: { recordId?: string; onClose: 
           checked={draft.fullTank}
           description={isEv ? "充到 100%，用于计算真实电耗" : "跳枪加满。连续两次加满即可计算真实油耗"}
           label={isEv ? "充满" : "加满"}
-          onChange={(checked) => update({ fullTank: checked, fuelLevelAfter: checked && showGauge && !draft.fuelLevelAfter ? "100" : draft.fuelLevelAfter })}
+          onChange={(checked) => setDraft((current) => updateFuelFullTank(current, checked))}
         />
 
         {showGauge ? (
           <div className="editor-row">
             <GaugeField error={show("fuelLevelBefore")} label={isEv ? "充电前电量" : "加油前油表"} value={draft.fuelLevelBefore} onChange={(value) => update({ fuelLevelBefore: value })} />
-            <GaugeField error={show("fuelLevelAfter")} label={isEv ? "充电后电量" : "加油后油表"} value={draft.fuelLevelAfter} onChange={(value) => update({ fuelLevelAfter: value })} />
+            <GaugeField error={show("fuelLevelAfter")} label={isEv ? "充电后电量" : "加油后油表"} value={draft.fuelLevelAfter} onChange={(value) => setDraft((current) => updateFuelLevelAfter(current, value))} />
           </div>
         ) : (
           <button className="link-button" type="button" onClick={() => setShowGauge(true)}>
             + 记录{isEv ? "电量" : "油表"}刻度（没有加满时也能算油耗）
           </button>
+        )}
+
+        <NumberField
+          hint={lastKm != null ? `上次 ${km(lastKm)} · 选填，以仪表盘读数为准` : "选填，记录加注前仪表盘显示的总里程"}
+          label="当前里程"
+          placeholder={suggestedKm != null ? String(Math.round(suggestedKm)) : "选填"}
+          suffix="km"
+          value={draft.odometer}
+          onChange={(value) => update({ odometer: value })}
+        />
+        {suggestedKm != null && (
+          <p className="editor-calc" aria-live="polite">
+            {estimate
+              ? `按加注前${isEv ? "电量" : "油位"}和近期${isEv ? "能耗" : "油耗"} ${num(estimate.per100km, 1)} ${unit}/100km，估计约 ${km(suggestedKm)}`
+              : `按历史日均里程估计约 ${km(suggestedKm)}`}
+            <span> · 仅供核对，不自动写入记录</span>
+          </p>
+        )}
+        {odometerWarning && (
+          <p className="inline-warning">
+            <AlertTriangle size={14} />
+            {odometerWarning}
+          </p>
         )}
 
         {preview && (
